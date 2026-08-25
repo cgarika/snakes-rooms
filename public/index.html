@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Snakes &amp; Ladders</title>
+<style>
+  :root{ --green:#33d17a; --red:#ff5757; --gold:#ffc233; --txt:#eef0ff; --mut:#8f97bd;
+    --glassbd:rgba(255,255,255,.1); --ease:cubic-bezier(.2,0,0,1); }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body{ margin:0; min-height:100vh; color:var(--txt);
+    background: radial-gradient(700px 420px at 12% -6%, rgba(51,209,122,.15), transparent 60%),
+      radial-gradient(700px 420px at 88% 4%, rgba(255,87,87,.13), transparent 60%),
+      linear-gradient(180deg,#141833 0%, #0d1024 60%, #0a0d1e 100%);
+    font-family:'Avenir Next','Segoe UI',system-ui,-apple-system,sans-serif;
+    display:flex; flex-direction:column; align-items:center; padding:18px 12px 40px; }
+  .wordmark{ font-weight:900; letter-spacing:.12em; font-size:26px; margin:6px 0 2px; text-align:center; text-shadow:0 2px 12px rgba(0,0,0,.6); }
+  .wordmark.small{ font-size:16px; margin:0 0 10px; }
+  .wordmark .s1{color:var(--red)} .wordmark .s2{color:var(--green)}
+  .roomtag{ font-size:12px; color:var(--mut); letter-spacing:.1em; margin-left:10px; }
+  .tagline{ color:var(--mut); font-size:13px; margin-bottom:14px; text-align:center; }
+  .arcadelink{ display:flex; width:fit-content; align-items:center; gap:6px; margin:0 auto 14px;
+    font-size:12.5px; font-weight:800; letter-spacing:.05em; color:var(--mut); text-decoration:none;
+    border:1px solid rgba(255,255,255,.14); border-radius:999px; padding:7px 14px; background:rgba(255,255,255,.04); }
+  .panel{ width:100%; max-width:460px; background:rgba(26,30,52,.72); backdrop-filter:blur(14px);
+    border-radius:22px; border:1px solid var(--glassbd); box-shadow:0 20px 44px rgba(0,0,0,.45); padding:20px; }
+  .label{ font-size:11.5px; font-weight:800; letter-spacing:.12em; color:var(--mut); margin-bottom:7px; text-transform:uppercase; }
+  input{ width:100%; padding:13px 15px; font-size:16.5px; border-radius:13px;
+    border:1px solid rgba(255,255,255,.14); background:rgba(13,16,36,.7); outline:none;
+    font-family:inherit; font-weight:600; color:var(--txt); }
+  input.code{ text-transform:uppercase; letter-spacing:.28em; font-family:ui-monospace,Menlo,monospace; }
+  input:focus{ border-color:rgba(51,209,122,.6); box-shadow:0 0 0 3px rgba(51,209,122,.14); }
+  .btn{ width:100%; padding:14px 16px; font-size:16.5px; font-weight:800; border-radius:14px;
+    border:none; cursor:pointer; font-family:inherit; color:#fff; transition:transform .12s var(--ease); }
+  .btn:active{ transform:translateY(1px) scale(.985); }
+  .btn:disabled{ opacity:.45; }
+  .btn.green{ background:linear-gradient(180deg,#4fe08f,#1ea75c); box-shadow:0 10px 24px rgba(51,209,122,.4); }
+  .btn.blue{ background:linear-gradient(180deg,#6f9aff,#4a76ea); box-shadow:0 10px 24px rgba(91,140,255,.4); }
+  .btn.plain{ background:rgba(255,255,255,.08); color:var(--txt); border:1px solid rgba(255,255,255,.12); }
+  .btn.small{ width:auto; padding:9px 14px; font-size:14px; border-radius:11px; }
+  .divider{ display:flex; align-items:center; gap:10px; margin:16px 0; }
+  .divider .line{ flex:1; height:1px; background:rgba(255,255,255,.14); }
+  .divider .txt{ font-size:11.5px; font-weight:800; color:var(--mut); letter-spacing:.1em; }
+  .hint{ margin-top:16px; color:var(--mut); font-size:13px; text-align:center; max-width:420px; line-height:1.55; }
+  .avrow{ display:flex; gap:7px; flex-wrap:wrap; }
+  .avchip{ width:44px; height:44px; border-radius:13px; border:1px solid rgba(255,255,255,.12);
+    background:rgba(255,255,255,.06); font-size:22px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .avchip.on{ border-color:rgba(51,209,122,.9); background:rgba(51,209,122,.13); }
+  .playerrow{ display:flex; align-items:center; gap:10px; padding:11px 13px; background:rgba(255,255,255,.05);
+    border-radius:13px; border:1px solid rgba(255,255,255,.09); font-weight:700; margin-bottom:8px; }
+  .playerrow .who{ flex:1; } .hosttag{ font-size:10.5px; font-weight:800; color:var(--gold); letter-spacing:.08em; }
+  .tokrow{ display:flex; gap:8px; flex-wrap:wrap; }
+  .tokbtn{ flex:1; min-width:120px; padding:11px 8px; font-size:14px; font-weight:800; border-radius:12px;
+    border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); cursor:pointer; font-family:inherit; color:var(--txt); }
+  .mt10{margin-top:10px}.mt12{margin-top:12px}.mt18{margin-top:18px}
+  .hidden{ display:none !important; }
+  .strip{ width:100%; max-width:600px; display:flex; gap:7px; flex-wrap:wrap; justify-content:center; margin-bottom:8px; }
+  .pill{ display:flex; align-items:center; gap:6px; padding:6px 11px; border-radius:999px; background:rgba(26,30,52,.72);
+    border:1px solid rgba(255,255,255,.1); font-weight:800; font-size:13px; }
+  .pill.turn{ border-color:rgba(255,194,51,.8); box-shadow:0 0 16px rgba(255,194,51,.35); }
+  .pill.gone{ opacity:.4; }
+  .pill .dot{ width:11px; height:11px; border-radius:50%; border:2px solid #fff; }
+  .pill .pos{ background:rgba(255,255,255,.1); border-radius:999px; padding:1px 8px; font-size:12px; }
+  .meta{ width:100%; max-width:600px; display:flex; align-items:center; justify-content:center; gap:14px; margin-bottom:8px;
+    font-size:13px; font-weight:800; color:var(--mut); }
+  .timer{ width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-weight:900; font-size:13px; background:conic-gradient(var(--gold) calc(var(--pct,0)*1%), rgba(255,255,255,.08) 0); }
+  .timer span{ width:35px; height:35px; border-radius:50%; background:#161a33; display:flex; align-items:center; justify-content:center; }
+  .boardwrap{ width:100%; max-width:600px; background:rgba(26,30,52,.6); border:1px solid var(--glassbd);
+    border-radius:20px; padding:8px; box-shadow:0 16px 36px rgba(0,0,0,.4); }
+  svg{ width:100%; height:auto; display:block; }
+  .rollrow{ width:100%; max-width:600px; display:flex; gap:10px; margin-top:12px; align-items:center; }
+  .rollrow .btn{ flex:1; font-size:19px; padding:15px; }
+  .dice{ width:58px; height:58px; border-radius:15px; background:linear-gradient(180deg,#fff,#dfe4ff); color:#1b1f3d;
+    font-weight:900; font-size:26px; display:flex; align-items:center; justify-content:center; flex:none;
+    box-shadow:0 8px 18px rgba(0,0,0,.4); }
+  .actionhint{ width:100%; max-width:600px; text-align:center; font-size:13.5px; font-weight:700; color:var(--mut); margin-top:10px; min-height:20px; }
+  .actionhint b{ color:var(--txt); }
+  .log{ width:100%; max-width:600px; margin-top:10px; background:rgba(26,30,52,.72); border:1px solid var(--glassbd);
+    border-radius:15px; padding:11px 15px; font-size:13.5px; font-weight:700; text-align:center; }
+  .overbox{ text-align:center; margin-top:12px; width:100%; max-width:600px; }
+  .overbox .cup{ font-size:38px; }
+  .overbox .wname{ font-weight:900; font-size:22px; color:var(--gold); }
+  .standing{ display:flex; justify-content:space-between; padding:9px 14px; background:rgba(255,255,255,.05);
+    border-radius:11px; margin-top:7px; font-weight:700; font-size:14px; }
+  .voicebar{ width:100%; max-width:600px; display:flex; align-items:center; gap:10px; margin-top:12px; flex-wrap:wrap; }
+  .voicebar .btn{ width:auto; }
+  .voicewho{ font-size:12.5px; font-weight:700; color:var(--mut); flex:1; min-width:120px; }
+  .voiceleave{ font-size:12px; color:var(--mut); font-weight:700; }
+  #voiceBtn.live{ background:linear-gradient(180deg,#3ee68b,#1eb567); color:#fff; border:none; }
+  #voiceBtn.muted{ background:linear-gradient(180deg,#ff7a7a,#e84040); color:#fff; border:none; }
+  audio.vpeer{ display:none; }
+  .chatcard{ margin-top:12px; width:100%; max-width:600px; background:rgba(26,30,52,.72); border:1px solid var(--glassbd); border-radius:18px; overflow:hidden; }
+  .chattoggle{ width:100%; padding:12px 15px; font-size:15px; font-weight:800; border:none; background:transparent;
+    color:var(--txt); font-family:inherit; cursor:pointer; text-align:left; display:flex; align-items:center; gap:8px; }
+  .badge{ background:linear-gradient(180deg,#ff7a7a,#e84040); color:#fff; border-radius:999px; font-size:11px; font-weight:800; padding:2px 8px; }
+  #chatbody{ max-height:0; overflow:hidden; opacity:0; transition:max-height .38s var(--ease), opacity .3s var(--ease); }
+  #chatbody.open{ max-height:320px; opacity:1; }
+  #msgs{ max-height:190px; overflow-y:auto; padding:4px 14px; border-top:1px solid rgba(255,255,255,.09); }
+  .msg{ display:flex; gap:8px; align-items:flex-start; margin:8px 0; font-size:14px; }
+  .msg .mn{ font-weight:800; margin-right:5px; color:var(--mut); }
+  .chatrow{ display:flex; gap:8px; padding:9px 14px 13px; border-top:1px solid rgba(255,255,255,.09); }
+  .chatrow input{ flex:1; padding:11px 13px; font-size:15px; }
+  .sendbtn{ width:48px; border-radius:12px; border:none; background:linear-gradient(180deg,#4fe08f,#1ea75c);
+    color:#fff; font-size:18px; font-weight:800; cursor:pointer; font-family:inherit; }
+  #toast{ position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:rgba(14,17,36,.95); color:var(--txt);
+    padding:11px 18px; border-radius:14px; border:1px solid rgba(255,255,255,.14); font-weight:700; font-size:14px;
+    z-index:50; max-width:90vw; text-align:center; opacity:0; pointer-events:none; transition:opacity .2s; }
+  #toast.show{ opacity:1; }
+</style>
+</head>
+<body>
+<div id="home">
+  <div class="wordmark"><span class="s1">SNAKES</span> &amp; <span class="s2">LADDERS</span></div>
+  <div class="tagline">Roll, climb, get eaten, scream. The classic — with friends anywhere.</div>
+  <a class="arcadelink" href="/">&#9666; all games &middot; needasix arcade</a>
+  <div class="panel">
+    <div class="label">Your name</div>
+    <input id="nameIn" maxlength="18" placeholder="e.g. Chanu">
+    <div class="label mt12">Pick your avatar</div>
+    <div class="avrow" id="avrow"></div>
+    <button class="btn green mt18" id="createBtn">Create a room</button>
+    <div class="divider"><div class="line"></div><div class="txt">OR JOIN</div><div class="line"></div></div>
+    <div class="label">Room code</div>
+    <input id="codeIn" class="code" maxlength="6" placeholder="ABC123">
+    <button class="btn blue mt12" id="joinBtn">Join room</button>
+  </div>
+  <div class="hint">2–8 players. Land exactly on 100 to win — overshoot and you bounce back. Sixes roll again. The snake on 99 has ended friendships.</div>
+</div>
+
+<div id="lobby" class="hidden">
+  <div class="wordmark small"><span class="s1">SNAKES</span> &amp; <span class="s2">LADDERS</span><span class="roomtag" id="lobbyCode"></span></div>
+  <div class="panel">
+    <div class="label">Players <span id="pcount"></span></div>
+    <div id="plist"></div>
+    <div class="label mt12">Bots</div>
+    <div class="tokrow" id="botrow"></div>
+    <button class="btn green mt18" id="startBtn">Roll for it</button>
+    <button class="btn plain small mt10" id="leaveLobbyBtn">Leave</button>
+  </div>
+</div>
+
+<div id="game" class="hidden">
+  <div class="wordmark small"><span class="s1">SNAKES</span> &amp; <span class="s2">LADDERS</span><span class="roomtag" id="gameCode"></span></div>
+  <div class="strip" id="strip"></div>
+  <div class="meta"><span id="turnwho"></span><div class="timer" id="timer"><span id="timerNum">–</span></div></div>
+  <div class="boardwrap">
+    <svg id="board" viewBox="0 0 600 668" xmlns="http://www.w3.org/2000/svg">
+      <g id="cells"></g><g id="decor"></g><g id="startzone"></g><g id="tokens"></g>
+    </svg>
+  </div>
+  <div class="rollrow">
+    <div class="dice" id="dice">🎲</div>
+    <button class="btn green" id="rollBtn">ROLL</button>
+  </div>
+  <div class="actionhint" id="actionhint"></div>
+  <div class="log" id="log"></div>
+  <div class="overbox hidden" id="overbox">
+    <div class="cup">🏆</div>
+    <div class="wname" id="winname"></div>
+    <div id="standings"></div>
+    <button class="btn green mt12" id="rematchBtn">Rematch</button>
+    <div><a class="arcadelink" href="/" style="margin-top:12px">&#9666; more games at the arcade</a></div>
+  </div>
+  <div class="voicebar hidden" id="voicebar">
+    <button id="voiceBtn" class="btn small plain">🎙 Join voice</button>
+    <a href="#" id="voiceLeave" class="voiceleave hidden">leave voice</a>
+    <div id="voicewho" class="voicewho"></div>
+  </div>
+  <div class="chatcard">
+    <button class="chattoggle" id="chatToggle">💬 Chat <span class="badge hidden" id="unread">0</span></button>
+    <div id="chatbody"><div id="msgs"></div>
+      <div class="chatrow"><input id="chatIn" maxlength="140" placeholder="Laugh at whoever hit 99…"><button class="sendbtn" id="sendBtn">➤</button></div>
+    </div>
+  </div>
+  <button class="btn plain small mt12" id="leaveGameBtn">Leave game</button>
+</div>
+<div id="toast"></div>
+<script src="socket.io/socket.io.js"></script>
+<script>
+const $ = (id)=>document.getElementById(id);
+const esc = (s)=>String(s).replace(/[&<>"]/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const APP_BASE = location.pathname.replace(/\/[^\/]*$/, "");
+const socket = io({ path: APP_BASE + "/socket.io" });
+if (APP_BASE === "") document.querySelectorAll(".arcadelink").forEach((a)=>{ a.style.display = "none"; });
+let S = { room:null, mySeat:-1 };
+let chatOpen=false, unread=0, lastChatLen=0;
+let boardBuilt=false, animMv=0, animBusy=false, shownPos=null;
+
+const AV = ["🐍","🪜","🎲","🦊","🐼","👑","🐯","🦄","🐸","🤠","👽","🍀"];
+let myAvatar = localStorage.getItem("snAvatar") || AV[Math.floor(Math.random()*AV.length)];
+let playerId = localStorage.getItem("snPid");
+if (!playerId){ playerId = "p_"+Math.random().toString(36).slice(2)+Date.now().toString(36); localStorage.setItem("snPid", playerId); }
+$("nameIn").value = localStorage.getItem("snName") || "";
+
+function toast(t){ const el=$("toast"); el.textContent=t; el.classList.add("show"); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove("show"),2600); }
+function show(id){ for (const s of ["home","lobby","game"]) $(s).classList.toggle("hidden", s!==id); }
+function drawAv(){ $("avrow").innerHTML = AV.map(a=>`<button class="avchip${a===myAvatar?" on":""}" data-a="${a}">${a}</button>`).join(""); }
+drawAv();
+$("avrow").addEventListener("click",(e)=>{ const b=e.target.closest(".avchip"); if(!b) return; myAvatar=b.getAttribute("data-a"); localStorage.setItem("snAvatar",myAvatar); drawAv(); });
+function myName(){ const n=$("nameIn").value.trim(); if(!n){ toast("Pick a name first."); return null; } localStorage.setItem("snName",n); return n; }
+$("createBtn").onclick = ()=>{ const n=myName(); if(n) socket.emit("create",{ name:n, playerId, avatar:myAvatar }); };
+$("joinBtn").onclick = ()=>{ const n=myName(); const c=$("codeIn").value.trim().toUpperCase(); if(!c) return toast("Enter the room code."); if(n) socket.emit("join",{ code:c, name:n, playerId, avatar:myAvatar }); };
+socket.on("err",(m)=>toast(m));
+socket.on("joined",({code})=>{ localStorage.setItem("snRoom",code); });
+window.addEventListener("load",()=>{ const c=localStorage.getItem("snRoom"); const n=localStorage.getItem("snName");
+  if (c && n) socket.emit("join",{ code:c, name:n, playerId, avatar:myAvatar }); });
+
+$("botrow").addEventListener("click",(e)=>{
+  if (e.target.closest("#addBotBtn")) socket.emit("addBot");
+  else if (e.target.closest("#delBotBtn")) socket.emit("removeBot");
+});
+$("startBtn").onclick = ()=>socket.emit("start");
+$("leaveLobbyBtn").onclick = ()=>{ socket.emit("leave"); localStorage.removeItem("snRoom"); show("home"); };
+$("leaveGameBtn").onclick = ()=>{ if(confirm("Leave the game?")){ socket.emit("leave"); localStorage.removeItem("snRoom"); leaveVoice(); show("home"); } };
+
+function renderLobby(r){
+  show("lobby");
+  $("lobbyCode").textContent = "· " + r.code;
+  $("pcount").textContent = `(${r.players.length}/${r.maxPlayers})`;
+  const isHost = S.mySeat === r.hostSeat;
+  $("plist").innerHTML = r.players.map((p,i)=>`
+    <div class="playerrow"><span class="pill" style="padding:2px"><span class="dot" style="background:${p.color}"></span></span><span>${p.avatar}</span>
+      <div class="who">${esc(p.name)}${p.bot?" (bot)":""}${i===S.mySeat?" (you)":""}</div>
+      ${i===r.hostSeat?'<div class="hosttag">HOST</div>':""}
+    </div>`).join("");
+  $("botrow").innerHTML = isHost
+    ? `<button class="tokbtn" id="addBotBtn">🤖 Add a bot</button>` + (r.players.some(p=>p.bot)?`<button class="tokbtn" id="delBotBtn">Remove bot</button>`:"")
+    : "";
+  $("startBtn").classList.toggle("hidden", !isHost);
+  $("startBtn").disabled = r.players.length < r.minPlayers;
+}
+
+/* ---- board geometry ---- */
+const CELL=56, OX=20, OY=20;
+function cellXY(n){
+  const r=Math.floor((n-1)/10);
+  let c=(n-1)%10;
+  if (r%2===1) c=9-c;
+  return { x:OX+c*CELL+CELL/2, y:OY+(9-r)*CELL+CELL/2 };
+}
+function startXY(seatIdx){ return { x:OX+22+seatIdx*46, y:OY+10*CELL+44 }; }
+function tokenOffset(idx){
+  const offs=[[-10,-10],[10,-10],[-10,10],[10,10],[0,-14],[0,14],[-14,0],[14,0]];
+  return offs[idx%8];
+}
+function buildBoard(r){
+  let cells="";
+  for(let n=1;n<=100;n++){
+    const {x,y}=cellXY(n);
+    const row=Math.floor((n-1)/10), col=(n-1)%10;
+    const dark=(row+col)%2===0;
+    let fill = dark ? "rgba(255,255,255,.05)" : "rgba(255,255,255,.10)";
+    if (r.ladders[n]!==undefined) fill="rgba(51,209,122,.22)";
+    if (r.snakes[n]!==undefined) fill="rgba(255,87,87,.2)";
+    if (n===100) fill="rgba(255,194,51,.28)";
+    cells+=`<rect x="${x-CELL/2}" y="${y-CELL/2}" width="${CELL}" height="${CELL}" rx="7" fill="${fill}" stroke="rgba(255,255,255,.07)"/>`;
+    cells+=`<text x="${x-CELL/2+6}" y="${y-CELL/2+15}" font-size="11" font-weight="800" fill="rgba(238,240,255,.5)" font-family="inherit">${n}</text>`;
+    if(n===100) cells+=`<text x="${x}" y="${y+12}" font-size="20" text-anchor="middle">🏆</text>`;
+  }
+  let decor="";
+  for(const [a,b] of Object.entries(r.ladders)){
+    const p=cellXY(Number(a)), q=cellXY(Number(b));
+    const dx=q.x-p.x, dy=q.y-p.y, len=Math.hypot(dx,dy);
+    const nx=-dy/len*6, ny=dx/len*6;
+    decor+=`<line x1="${p.x+nx}" y1="${p.y+ny}" x2="${q.x+nx}" y2="${q.y+ny}" stroke="#33d17a" stroke-width="4" stroke-linecap="round" opacity=".85"/>`;
+    decor+=`<line x1="${p.x-nx}" y1="${p.y-ny}" x2="${q.x-nx}" y2="${q.y-ny}" stroke="#33d17a" stroke-width="4" stroke-linecap="round" opacity=".85"/>`;
+    const rungs=Math.max(3,Math.floor(len/34));
+    for(let k=1;k<rungs;k++){
+      const t=k/rungs, mx=p.x+dx*t, my=p.y+dy*t;
+      decor+=`<line x1="${mx+nx}" y1="${my+ny}" x2="${mx-nx}" y2="${my-ny}" stroke="#33d17a" stroke-width="3.4" opacity=".85"/>`;
+    }
+  }
+  for(const [a,b] of Object.entries(r.snakes)){
+    const p=cellXY(Number(a)), q=cellXY(Number(b));
+    const mx=(p.x+q.x)/2, my=(p.y+q.y)/2;
+    const dx=q.x-p.x, dy=q.y-p.y, len=Math.hypot(dx,dy)||1;
+    const cx=mx-dy/len*34, cy=my+dx/len*34;
+    decor+=`<path d="M ${p.x} ${p.y} Q ${cx} ${cy} ${q.x} ${q.y}" fill="none" stroke="#e84040" stroke-width="7" stroke-linecap="round" opacity=".8"/>`;
+    decor+=`<circle cx="${p.x}" cy="${p.y}" r="7.5" fill="#c22f2f"/><circle cx="${p.x-2.5}" cy="${p.y-2}" r="1.6" fill="#fff"/><circle cx="${p.x+2.5}" cy="${p.y-2}" r="1.6" fill="#fff"/>`;
+    decor+=`<circle cx="${q.x}" cy="${q.y}" r="3.4" fill="#e84040" opacity=".8"/>`;
+  }
+  decor+=`<text x="${OX+4}" y="${OY+10*CELL+18}" font-size="11" font-weight="800" fill="rgba(238,240,255,.45)">START</text>`;
+  $("cells").innerHTML=cells;
+  $("decor").innerHTML=decor;
+  boardBuilt=true;
+}
+function tokenPos(r, seat, posOverride){
+  const pos = posOverride!==undefined ? posOverride : r.pos[seat];
+  if (pos===0){ const s=startXY(seat); return { x:s.x, y:s.y }; }
+  const c=cellXY(pos);
+  const stack = r.players.map((p,i)=>({i,pos:(i===seat&&posOverride!==undefined)?posOverride:r.pos[i]}))
+    .filter(x=>x.pos===pos && !r.players[x.i].left);
+  const idx = Math.max(0, stack.findIndex(x=>x.i===seat));
+  const off = stack.length>1 ? tokenOffset(idx) : [0,0];
+  return { x:c.x+off[0], y:c.y+off[1] };
+}
+function drawTokens(r, overridePos){
+  $("tokens").innerHTML = r.players.map((p,i)=>{
+    if (p.left) return "";
+    const t=tokenPos(r,i, overridePos && overridePos.seat===i ? overridePos.pos : undefined);
+    return `<g transform="translate(${t.x},${t.y})">
+      <circle r="12" fill="${p.color}" stroke="#fff" stroke-width="2.5"/>
+      <text y="4.5" text-anchor="middle" font-size="12">${p.avatar}</text>
+    </g>`;
+  }).join("");
+}
+function pathCells(from, roll){
+  const seq=[];
+  let n=from;
+  let target=from+roll;
+  if (target<=100){ for(let k=from+1;k<=target;k++) seq.push(k); }
+  else {
+    for(let k=from+1;k<=100;k++) seq.push(k);
+    for(let k=99;k>=200-from-roll;k--) seq.push(k);
+  }
+  return seq;
+}
+function animateMove(r){
+  const lm=r.lastMove;
+  if (!lm || lm.mv<=animMv || animBusy){ drawTokens(r); return; }
+  animMv=lm.mv; animBusy=true;
+  const seq=pathCells(lm.from, lm.roll);
+  let k=0;
+  const step=()=>{
+    if (k<seq.length){
+      drawTokens(r, { seat:lm.seat, pos:seq[k] });
+      k++; setTimeout(step, 120);
+    } else if (lm.via){
+      setTimeout(()=>{ drawTokens(r); animBusy=false; }, 260);
+    } else { drawTokens(r); animBusy=false; }
+  };
+  step();
+}
+function renderGame(r){
+  show("game");
+  $("gameCode").textContent = "· " + r.code;
+  if (!boardBuilt) buildBoard(r);
+  const myTurn = r.status==="playing" && S.mySeat===r.turn;
+  $("strip").innerHTML = r.players.map((p,i)=>`
+    <div class="pill${i===r.turn&&r.status==="playing"?" turn":""}${p.left?" gone":""}">
+      <span class="dot" style="background:${p.color}"></span>
+      ${p.left?"💀":p.avatar} ${esc(p.name)}${p.bot?" 🤖":""}
+      <span class="pos">${r.pos?r.pos[i]:0}</span>
+    </div>`).join("");
+  $("turnwho").textContent = r.status==="playing" ? (myTurn ? "YOUR ROLL" + (r.sixes?` (six streak ${r.sixes})`:"") : `${r.players[r.turn].name}'s roll`) : "";
+  $("dice").textContent = r.lastMove ? r.lastMove.roll : "🎲";
+  $("rollBtn").disabled = !myTurn;
+  $("rollBtn").textContent = myTurn ? "ROLL 🎲" : "waiting…";
+  if (r.status==="over") $("actionhint").innerHTML="";
+  else if (myTurn) $("actionhint").innerHTML = "<b>Tap ROLL.</b> Exactly 100 wins — overshoot bounces back.";
+  else $("actionhint").innerHTML = "";
+  $("log").textContent = r.log || "";
+  $("overbox").classList.toggle("hidden", r.status!=="over");
+  if (r.status==="over"){
+    $("winname").textContent = r.players[r.winner] ? r.players[r.winner].name + " wins!" : "Game over";
+    $("standings").innerHTML = (r.standings||[]).map((s,rank)=>`
+      <div class="standing"><span>${["🥇","🥈","🥉"][rank]||"#"+(rank+1)} ${esc(r.players[s.seat].name)}${s.left?" (left)":""}</span><span>square ${s.pos}</span></div>`).join("");
+    $("rematchBtn").classList.toggle("hidden", S.mySeat !== r.hostSeat);
+  }
+  animateMove(r);
+  drawMsgs(r); renderVoice(r);
+}
+$("rollBtn").onclick = ()=>socket.emit("roll");
+$("rematchBtn").onclick = ()=>socket.emit("rematch");
+
+setInterval(()=>{
+  const r=S.room;
+  if(!r||!r.phaseEndsAt||r.status!=="playing"){ $("timerNum").textContent="–"; $("timer").style.setProperty("--pct",0); return; }
+  const left=Math.max(0, r.phaseEndsAt-Date.now());
+  $("timerNum").textContent=Math.ceil(left/1000);
+  const total=r._total||(r._total=left);
+  $("timer").style.setProperty("--pct", Math.round((left/Math.max(total,1))*100));
+},250);
+
+$("chatToggle").onclick = ()=>{ chatOpen=!chatOpen; $("chatbody").classList.toggle("open",chatOpen); if(chatOpen){ unread=0; $("unread").classList.add("hidden"); } };
+function sendChat(){ const t=$("chatIn").value.trim(); if(!t) return; socket.emit("chat",{ t }); $("chatIn").value=""; }
+$("sendBtn").onclick = sendChat;
+$("chatIn").addEventListener("keydown",(e)=>{ if(e.key==="Enter") sendChat(); });
+function drawMsgs(r){
+  const list=r.chat||[];
+  $("msgs").innerHTML = list.map(m=>`<div class="msg"><span>${m.a||""}</span><div><span class="mn">${esc(m.n)}</span>${esc(m.t)}</div></div>`).join("");
+  $("msgs").scrollTop = $("msgs").scrollHeight;
+  if (list.length>lastChatLen && !chatOpen){ unread+=list.length-lastChatLen; $("unread").textContent=unread; $("unread").classList.remove("hidden"); }
+  lastChatLen=list.length;
+}
+socket.on("state", ({room, mySeat})=>{
+  const prevTurn = S.room && (""+S.room.turn+(S.room.lastMove?S.room.lastMove.mv:0));
+  S.room=room; S.mySeat=mySeat;
+  if ((""+room.turn+(room.lastMove?room.lastMove.mv:0)) !== prevTurn) room._total=null;
+  if (room.status==="lobby") renderLobby(room); else renderGame(room);
+});
+
+/* voice (same peer-to-peer module as the rest of the arcade) */
+const VOICE = { on:false, muted:false, stream:null, pcs:new Map(), els:new Map(), seats:[] };
+const RTC_CFG = { iceServers:[{ urls:["stun:stun.l.google.com:19302","stun:stun1.l.google.com:19302"] }] };
+function voiceSupported(){ return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.RTCPeerConnection && window.isSecureContext); }
+function renderVoice(r){
+  const bar=$("voicebar"); if(!bar) return;
+  const active = r && r.status!=="lobby";
+  bar.classList.toggle("hidden", !active || !voiceSupported());
+  if (!active){ if (VOICE.on) leaveVoice(); return; }
+  VOICE.seats = r.voice || [];
+  if (VOICE.on && !VOICE.seats.includes(S.mySeat)) VOICE.seats = VOICE.seats.concat([S.mySeat]);
+  const btn=$("voiceBtn");
+  btn.classList.toggle("live", VOICE.on && !VOICE.muted);
+  btn.classList.toggle("muted", VOICE.on && VOICE.muted);
+  btn.textContent = !VOICE.on ? "🎙 Join voice" : (VOICE.muted ? "🔇 Unmute" : "🎙 Mute");
+  $("voiceLeave").classList.toggle("hidden", !VOICE.on);
+  const others = VOICE.seats.filter(s=>s!==S.mySeat && r.players[s]);
+  $("voicewho").textContent = VOICE.seats.length===0 ? "The 99 snake deserves a live audience."
+    : `${VOICE.seats.length} in voice${others.length?": "+others.map(s=>r.players[s].name).join(", "):""}`;
+  if (VOICE.on) syncPeers();
+}
+async function joinVoice(){
+  try{ VOICE.stream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true } }); }
+  catch(e){ toast("Voice needs microphone permission."); return; }
+  VOICE.on=true; VOICE.muted=false;
+  socket.emit("voice",{ kind:"join" });
+  if (S.room) renderVoice(S.room);
+}
+function leaveVoice(){
+  if (!VOICE.on && VOICE.pcs.size===0) return;
+  VOICE.on=false; VOICE.muted=false;
+  socket.emit("voice",{ kind:"leave" });
+  for (const [,pc] of VOICE.pcs){ try{pc.close();}catch(e){} } VOICE.pcs.clear();
+  for (const [,el] of VOICE.els){ try{el.remove();}catch(e){} } VOICE.els.clear();
+  if (VOICE.stream){ VOICE.stream.getTracks().forEach(t=>t.stop()); VOICE.stream=null; }
+}
+function toggleMute(){ VOICE.muted=!VOICE.muted; if (VOICE.stream) VOICE.stream.getAudioTracks().forEach(t=>{t.enabled=!VOICE.muted;}); }
+$("voiceBtn").onclick = ()=>{ if(!VOICE.on) joinVoice(); else { toggleMute(); if(S.room) renderVoice(S.room); } };
+$("voiceLeave").onclick = (e)=>{ e.preventDefault(); leaveVoice(); if(S.room) renderVoice(S.room); };
+function pcFor(seat){
+  if (VOICE.pcs.has(seat)) return VOICE.pcs.get(seat);
+  const pc = new RTCPeerConnection(RTC_CFG);
+  VOICE.pcs.set(seat, pc);
+  if (VOICE.stream) VOICE.stream.getTracks().forEach(t=>pc.addTrack(t, VOICE.stream));
+  pc.onicecandidate = (e)=>{ if(e.candidate) socket.emit("voice",{ kind:"signal", to:seat, data:{ ice:e.candidate } }); };
+  pc.ontrack = (e)=>{
+    let el = VOICE.els.get(seat);
+    if (!el){ el=document.createElement("audio"); el.className="vpeer"; el.autoplay=true; el.setAttribute("playsinline",""); document.body.appendChild(el); VOICE.els.set(seat, el); }
+    el.srcObject = e.streams[0];
+    if (el.play) el.play().catch(()=>{});
+  };
+  return pc;
+}
+async function syncPeers(){
+  const targets = VOICE.seats.filter(s=>s!==S.mySeat);
+  for (const [seat,pc] of [...VOICE.pcs]){
+    if (!targets.includes(seat)){ try{pc.close();}catch(e){} VOICE.pcs.delete(seat);
+      const el=VOICE.els.get(seat); if(el){ el.remove(); VOICE.els.delete(seat); } }
+  }
+  for (const seat of targets){
+    if (!VOICE.pcs.has(seat) && S.mySeat < seat){
+      const pc = pcFor(seat);
+      try{
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        socket.emit("voice",{ kind:"signal", to:seat, data:{ sdp: pc.localDescription } });
+      }catch(e){}
+    }
+  }
+}
+socket.on("voice", async (msg)=>{
+  if (!msg || msg.kind!=="signal" || !VOICE.on) return;
+  const pc = pcFor(msg.from);
+  const d = msg.data || {};
+  try{
+    if (d.sdp){
+      await pc.setRemoteDescription(d.sdp);
+      if (d.sdp.type==="offer"){
+        const ans = await pc.createAnswer();
+        await pc.setLocalDescription(ans);
+        socket.emit("voice",{ kind:"signal", to:msg.from, data:{ sdp: pc.localDescription } });
+      }
+    } else if (d.ice){ await pc.addIceCandidate(d.ice); }
+  }catch(e){}
+});
+</script>
+</body>
+</html>
