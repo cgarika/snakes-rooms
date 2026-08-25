@@ -54,6 +54,12 @@
     border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); cursor:pointer; font-family:inherit; color:var(--txt); }
   .mt10{margin-top:10px}.mt12{margin-top:12px}.mt18{margin-top:18px}
   .hidden{ display:none !important; }
+  .confetti{ position:fixed; inset:0; pointer-events:none; z-index:80; overflow:hidden; }
+  .confetti i{ position:absolute; top:-4vh; width:9px; height:14px; border-radius:2px; opacity:.95;
+    animation:cfall linear forwards; }
+  @keyframes cfall{ to{ transform:translateY(108vh) rotate(720deg); opacity:.7; } }
+  @keyframes jshake{ 0%,100%{transform:translate(0,0)} 20%{transform:translate(-6px,2px)} 40%{transform:translate(5px,-3px)} 60%{transform:translate(-4px,-2px)} 80%{transform:translate(3px,2px)} }
+  .jshake{ animation:jshake .38s ease; }
   .strip{ width:100%; max-width:600px; display:flex; gap:7px; flex-wrap:wrap; justify-content:center; margin-bottom:8px; }
   .pill{ display:flex; align-items:center; gap:6px; padding:6px 11px; border-radius:999px; background:rgba(26,30,52,.72);
     border:1px solid rgba(255,255,255,.1); font-weight:800; font-size:13px; }
@@ -66,14 +72,22 @@
   .timer{ width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center;
     font-weight:900; font-size:13px; background:conic-gradient(var(--gold) calc(var(--pct,0)*1%), rgba(255,255,255,.08) 0); }
   .timer span{ width:35px; height:35px; border-radius:50%; background:#161a33; display:flex; align-items:center; justify-content:center; }
-  .boardwrap{ width:100%; max-width:600px; background:rgba(26,30,52,.6); border:1px solid var(--glassbd);
-    border-radius:20px; padding:8px; box-shadow:0 16px 36px rgba(0,0,0,.4); }
+  .boardwrap{ width:100%; max-width:600px; background:linear-gradient(145deg,#8a6238,#6d4b28); border:5px solid #7a5530;
+    border-radius:20px; padding:8px; box-shadow:0 5px 0 #5d4024, 0 18px 38px rgba(0,0,0,.55), inset 0 2px 3px rgba(255,235,200,.35); transform:translateZ(0); }
   svg{ width:100%; height:auto; display:block; }
   .rollrow{ width:100%; max-width:600px; display:flex; gap:10px; margin-top:12px; align-items:center; }
   .rollrow .btn{ flex:1; font-size:19px; padding:15px; }
-  .dice{ width:58px; height:58px; border-radius:15px; background:linear-gradient(180deg,#fff,#dfe4ff); color:#1b1f3d;
-    font-weight:900; font-size:26px; display:flex; align-items:center; justify-content:center; flex:none;
-    box-shadow:0 8px 18px rgba(0,0,0,.4); }
+  .diestage{ width:74px; height:74px; perspective:320px; flex:none; }
+  .cube{ width:52px; height:52px; margin:11px; position:relative; transform-style:preserve-3d;
+    transform:rotateX(-22deg) rotateY(32deg); transition:transform 1.15s cubic-bezier(.2,.8,.25,1); will-change:transform; }
+  .face{ position:absolute; width:52px; height:52px; border-radius:11px;
+    background:linear-gradient(145deg,#ffffff,#dfe3f7); border:1.5px solid rgba(0,0,0,.08);
+    box-shadow:inset 0 3px 4px rgba(255,255,255,.9), inset 0 -4px 6px rgba(70,80,140,.28); }
+  .face .p{ position:absolute; width:10px; height:10px; border-radius:50%;
+    background:radial-gradient(circle at 34% 28%, #4a5180, #14172f 70%); }
+  .f1{ transform:rotateY(0deg) translateZ(26px); } .f2{ transform:rotateY(90deg) translateZ(26px); }
+  .f3{ transform:rotateX(90deg) translateZ(26px); } .f4{ transform:rotateX(-90deg) translateZ(26px); }
+  .f5{ transform:rotateY(-90deg) translateZ(26px); } .f6{ transform:rotateY(180deg) translateZ(26px); }
   .actionhint{ width:100%; max-width:600px; text-align:center; font-size:13.5px; font-weight:700; color:var(--mut); margin-top:10px; min-height:20px; }
   .actionhint b{ color:var(--txt); }
   .log{ width:100%; max-width:600px; margin-top:10px; background:rgba(26,30,52,.72); border:1px solid var(--glassbd);
@@ -107,6 +121,7 @@
     padding:11px 18px; border-radius:14px; border:1px solid rgba(255,255,255,.14); font-weight:700; font-size:14px;
     z-index:50; max-width:90vw; text-align:center; opacity:0; pointer-events:none; transition:opacity .2s; }
   #toast.show{ opacity:1; }
+  @media (prefers-reduced-motion:no-preference){ .btn, .pill, .hcard, .tile, .entry, .cube{ will-change:transform; } }
 </style>
 </head>
 <body>
@@ -146,11 +161,11 @@
   <div class="meta"><span id="turnwho"></span><div class="timer" id="timer"><span id="timerNum">–</span></div></div>
   <div class="boardwrap">
     <svg id="board" viewBox="0 0 600 668" xmlns="http://www.w3.org/2000/svg">
-      <g id="cells"></g><g id="decor"></g><g id="startzone"></g><g id="tokens"></g>
+      <defs><radialGradient id="gloss" cx="35%" cy="28%" r="80%"><stop offset="0%" stop-color="rgba(255,255,255,.55)"/><stop offset="45%" stop-color="rgba(255,255,255,.08)"/><stop offset="100%" stop-color="rgba(0,0,0,.28)"/></radialGradient></defs><g id="cells"></g><g id="decor"></g><g id="startzone"></g><g id="tokens"></g>
     </svg>
   </div>
   <div class="rollrow">
-    <div class="dice" id="dice">🎲</div>
+    <div class="diestage"><div class="cube" id="dcube"></div></div>
     <button class="btn green" id="rollBtn">ROLL</button>
   </div>
   <div class="actionhint" id="actionhint"></div>
@@ -183,6 +198,24 @@ const esc = (s)=>String(s).replace(/[&<>"]/g,(c)=>({"&":"&amp;","<":"&lt;",">":"
 const APP_BASE = location.pathname.replace(/\/[^\/]*$/, "");
 const socket = io({ path: APP_BASE + "/socket.io" });
 if (APP_BASE === "") document.querySelectorAll(".arcadelink").forEach((a)=>{ a.style.display = "none"; });
+function confetti(){
+  const cols=["#e2504c","#3aa46a","#f0b429","#4a6fe3","#9b5de5","#ee7a2f","#ef5da8"];
+  const wrap=document.createElement("div"); wrap.className="confetti";
+  for(let i=0;i<70;i++){ const d=document.createElement("i");
+    d.style.left=(Math.random()*100)+"vw"; d.style.background=cols[i%cols.length];
+    d.style.animationDelay=(Math.random()*0.7)+"s"; d.style.animationDuration=(2.2+Math.random()*1.5)+"s";
+    wrap.appendChild(d); }
+  document.body.appendChild(wrap); setTimeout(()=>wrap.remove(),4500);
+}
+let AC=null;
+function tone(f,dur,type,vol,when){
+  try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+    const t=AC.currentTime+(when||0), o=AC.createOscillator(), g=AC.createGain();
+    o.type=type||"sine"; o.frequency.value=f; g.gain.setValueAtTime(vol||.08,t);
+    g.gain.exponentialRampToValueAtTime(.0001,t+dur); o.connect(g); g.connect(AC.destination);
+    o.start(t); o.stop(t+dur+.02); }catch(e){}
+}
+function shake(el){ if(!el) return; el.classList.remove("jshake"); void el.offsetWidth; el.classList.add("jshake"); }
 let S = { room:null, mySeat:-1 };
 let chatOpen=false, unread=0, lastChatLen=0;
 let boardBuilt=false, animMv=0, animBusy=false, shownPos=null;
@@ -250,12 +283,13 @@ function buildBoard(r){
     const {x,y}=cellXY(n);
     const row=Math.floor((n-1)/10), col=(n-1)%10;
     const dark=(row+col)%2===0;
-    let fill = dark ? "rgba(255,255,255,.05)" : "rgba(255,255,255,.10)";
-    if (r.ladders[n]!==undefined) fill="rgba(51,209,122,.22)";
-    if (r.snakes[n]!==undefined) fill="rgba(255,87,87,.2)";
-    if (n===100) fill="rgba(255,194,51,.28)";
-    cells+=`<rect x="${x-CELL/2}" y="${y-CELL/2}" width="${CELL}" height="${CELL}" rx="7" fill="${fill}" stroke="rgba(255,255,255,.07)"/>`;
-    cells+=`<text x="${x-CELL/2+6}" y="${y-CELL/2+15}" font-size="11" font-weight="800" fill="rgba(238,240,255,.5)" font-family="inherit">${n}</text>`;
+    let fill = dark ? "#f6e7c8" : "#ebd6a9";
+    if (r.ladders[n]!==undefined) fill="#d9e8c2";
+    if (r.snakes[n]!==undefined) fill="#eccdb6";
+    if (n===100) fill="#f4d98a";
+    cells+=`<rect x="${x-CELL/2}" y="${y-CELL/2}" width="${CELL}" height="${CELL}" rx="7" fill="${fill}" stroke="rgba(120,80,30,.35)"/>`;
+    cells+=`<rect x="${x-CELL/2+2}" y="${y-CELL/2+2}" width="${CELL-4}" height="${(CELL-4)/2.4}" rx="6" fill="rgba(255,255,255,.4)"/>`;
+    cells+=`<text x="${x-CELL/2+6}" y="${y-CELL/2+15}" font-size="11" font-weight="800" fill="rgba(90,55,15,.7)" font-family="inherit">${n}</text>`;
     if(n===100) cells+=`<text x="${x}" y="${y+12}" font-size="20" text-anchor="middle">🏆</text>`;
   }
   let decor="";
@@ -263,12 +297,12 @@ function buildBoard(r){
     const p=cellXY(Number(a)), q=cellXY(Number(b));
     const dx=q.x-p.x, dy=q.y-p.y, len=Math.hypot(dx,dy);
     const nx=-dy/len*6, ny=dx/len*6;
-    decor+=`<line x1="${p.x+nx}" y1="${p.y+ny}" x2="${q.x+nx}" y2="${q.y+ny}" stroke="#33d17a" stroke-width="4" stroke-linecap="round" opacity=".85"/>`;
-    decor+=`<line x1="${p.x-nx}" y1="${p.y-ny}" x2="${q.x-nx}" y2="${q.y-ny}" stroke="#33d17a" stroke-width="4" stroke-linecap="round" opacity=".85"/>`;
+    decor+=`<line x1="${p.x+nx}" y1="${p.y+ny}" x2="${q.x+nx}" y2="${q.y+ny}" stroke="#8a5a2b" stroke-width="5.5" stroke-linecap="round"/>`;
+    decor+=`<line x1="${p.x-nx}" y1="${p.y-ny}" x2="${q.x-nx}" y2="${q.y-ny}" stroke="#8a5a2b" stroke-width="5.5" stroke-linecap="round"/>`;
     const rungs=Math.max(3,Math.floor(len/34));
     for(let k=1;k<rungs;k++){
       const t=k/rungs, mx=p.x+dx*t, my=p.y+dy*t;
-      decor+=`<line x1="${mx+nx}" y1="${my+ny}" x2="${mx-nx}" y2="${my-ny}" stroke="#33d17a" stroke-width="3.4" opacity=".85"/>`;
+      decor+=`<line x1="${mx+nx}" y1="${my+ny}" x2="${mx-nx}" y2="${my-ny}" stroke="#c9974f" stroke-width="3.6"/>`;
     }
   }
   for(const [a,b] of Object.entries(r.snakes)){
@@ -276,11 +310,12 @@ function buildBoard(r){
     const mx=(p.x+q.x)/2, my=(p.y+q.y)/2;
     const dx=q.x-p.x, dy=q.y-p.y, len=Math.hypot(dx,dy)||1;
     const cx=mx-dy/len*34, cy=my+dx/len*34;
-    decor+=`<path d="M ${p.x} ${p.y} Q ${cx} ${cy} ${q.x} ${q.y}" fill="none" stroke="#e84040" stroke-width="7" stroke-linecap="round" opacity=".8"/>`;
-    decor+=`<circle cx="${p.x}" cy="${p.y}" r="7.5" fill="#c22f2f"/><circle cx="${p.x-2.5}" cy="${p.y-2}" r="1.6" fill="#fff"/><circle cx="${p.x+2.5}" cy="${p.y-2}" r="1.6" fill="#fff"/>`;
-    decor+=`<circle cx="${q.x}" cy="${q.y}" r="3.4" fill="#e84040" opacity=".8"/>`;
+    decor+=`<path d="M ${p.x} ${p.y} Q ${cx} ${cy} ${q.x} ${q.y}" fill="none" stroke="#155e38" stroke-width="10" stroke-linecap="round"/>`;
+    decor+=`<path d="M ${p.x} ${p.y} Q ${cx} ${cy} ${q.x} ${q.y}" fill="none" stroke="#2fae68" stroke-width="5.5" stroke-linecap="round"/>`;
+    decor+=`<circle cx="${p.x}" cy="${p.y}" r="9" fill="#155e38"/><circle cx="${p.x}" cy="${p.y}" r="7" fill="#2fae68"/><circle cx="${p.x-2.5}" cy="${p.y-2}" r="1.6" fill="#fff"/><circle cx="${p.x+2.5}" cy="${p.y-2}" r="1.6" fill="#fff"/>`;
+    decor+=`<circle cx="${q.x}" cy="${q.y}" r="3.4" fill="#2fae68"/>`;
   }
-  decor+=`<text x="${OX+4}" y="${OY+10*CELL+18}" font-size="11" font-weight="800" fill="rgba(238,240,255,.45)">START</text>`;
+  decor+=`<text x="${OX+4}" y="${OY+10*CELL+18}" font-size="11" font-weight="800" fill="rgba(255,235,200,.75)">START</text>`;
   $("cells").innerHTML=cells;
   $("decor").innerHTML=decor;
   boardBuilt=true;
@@ -300,7 +335,10 @@ function drawTokens(r, overridePos){
     if (p.left) return "";
     const t=tokenPos(r,i, overridePos && overridePos.seat===i ? overridePos.pos : undefined);
     return `<g transform="translate(${t.x},${t.y})">
-      <circle r="12" fill="${p.color}" stroke="#fff" stroke-width="2.5"/>
+      <ellipse cy="10" rx="10" ry="3.6" fill="rgba(0,0,0,.35)"/>
+      <circle r="12" fill="${p.color}" stroke="rgba(0,0,0,.35)" stroke-width="1"/>
+      <circle r="12" fill="url(#gloss)"/>
+      <ellipse cx="-4" cy="-5" rx="4.4" ry="2.8" fill="rgba(255,255,255,.85)" transform="rotate(-20 -4 -5)"/>
       <text y="4.5" text-anchor="middle" font-size="12">${p.avatar}</text>
     </g>`;
   }).join("");
@@ -344,7 +382,7 @@ function renderGame(r){
       <span class="pos">${r.pos?r.pos[i]:0}</span>
     </div>`).join("");
   $("turnwho").textContent = r.status==="playing" ? (myTurn ? "YOUR ROLL" + (r.sixes?` (six streak ${r.sixes})`:"") : `${r.players[r.turn].name}'s roll`) : "";
-  $("dice").textContent = r.lastMove ? r.lastMove.roll : "🎲";
+  rollCube(r.lastMove);
   $("rollBtn").disabled = !myTurn;
   $("rollBtn").textContent = myTurn ? "ROLL 🎲" : "waiting…";
   if (r.status==="over") $("actionhint").innerHTML="";
@@ -360,6 +398,21 @@ function renderGame(r){
   }
   animateMove(r);
   drawMsgs(r); renderVoice(r);
+}
+const PIP52={1:[[26,26]],2:[[14,14],[38,38]],3:[[14,14],[26,26],[38,38]],4:[[14,14],[38,14],[14,38],[38,38]],5:[[14,14],[38,14],[26,26],[14,38],[38,38]],6:[[13,13],[39,13],[13,26],[39,26],[13,39],[39,39]]};
+(function buildCube(){
+  const cube=$("dcube"); if(!cube) return;
+  cube.innerHTML=[1,2,3,4,5,6].map(v=>`<div class="face f${v}">${PIP52[v].map(p=>`<i class="p" style="left:${p[0]-5}px;top:${p[1]-5}px"></i>`).join("")}</div>`).join("");
+})();
+const CUBE_FINAL={1:[0,0],2:[0,-90],3:[-90,0],4:[90,0],5:[0,90],6:[0,180]};
+let cubeMv=0, cubeSpins=0;
+function rollCube(lm){
+  const cube=$("dcube"); if(!cube) return;
+  if(!lm){ cube.style.transform="rotateX(-22deg) rotateY(32deg)"; return; }
+  if(lm.mv<=cubeMv) return;
+  cubeMv=lm.mv; cubeSpins++;
+  const f=CUBE_FINAL[lm.roll]||[0,0];
+  cube.style.transform=`rotateX(${f[0]-22+360*cubeSpins}deg) rotateY(${f[1]+32+360*(cubeSpins+1)}deg)`;
 }
 $("rollBtn").onclick = ()=>socket.emit("roll");
 $("rematchBtn").onclick = ()=>socket.emit("rematch");
@@ -386,6 +439,17 @@ function drawMsgs(r){
 }
 socket.on("state", ({room, mySeat})=>{
   const prevTurn = S.room && (""+S.room.turn+(S.room.lastMove?S.room.lastMove.mv:0));
+  const lm = room.lastMove;
+  const prevMv = S.room && S.room.lastMove ? S.room.lastMove.mv : 0;
+  if (lm && lm.mv>prevMv && room.status!=="lobby"){
+    tone(300,.05,"triangle",.07); tone(380,.06,"triangle",.06,.05);
+    if (lm.via && lm.via.kind==="ladder"){ tone(392,.08,"triangle",.08,.15); tone(523,.08,"triangle",.08,.25); tone(659,.12,"triangle",.09,.35); }
+    if (lm.via && lm.via.kind==="snake"){ tone(320,.3,"sawtooth",.07,.15); tone(160,.35,"sawtooth",.07,.3); shake(document.querySelector(".boardwrap")); }
+    if (lm.bounced) tone(200,.12,"square",.06,.1);
+  }
+  if (room.status==="over" && (!S.room || S.room.status!=="over")){
+    confetti(); tone(523,.12,"triangle",.09); tone(659,.12,"triangle",.09,.12); tone(784,.2,"triangle",.1,.24);
+  }
   S.room=room; S.mySeat=mySeat;
   if ((""+room.turn+(room.lastMove?room.lastMove.mv:0)) !== prevTurn) room._total=null;
   if (room.status==="lobby") renderLobby(room); else renderGame(room);
