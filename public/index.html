@@ -197,7 +197,7 @@
     <svg id="board" viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <radialGradient id="gloss" cx="35%" cy="28%" r="80%"><stop offset="0%" stop-color="rgba(255,255,255,.55)"/><stop offset="45%" stop-color="rgba(255,255,255,.08)"/><stop offset="100%" stop-color="rgba(0,0,0,.28)"/></radialGradient>
-        <pattern id="parch" patternUnits="userSpaceOnUse" x="0" y="0" width="330" height="330"><image href="art/parchment.jpg" width="330" height="330"/></pattern>
+        <pattern id="parch" patternUnits="userSpaceOnUse" x="0" y="0" width="330" height="330"><image href="art/parchment.jpg${ART_V}" width="330" height="330"/></pattern>
         <radialGradient id="pickGlow" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fff8c8"/><stop offset="45%" stop-color="#ffd666" stop-opacity=".55"/><stop offset="100%" stop-color="#ffc233" stop-opacity="0"/></radialGradient>
       </defs>
       <g id="plate"></g><g id="cells"></g><g id="decor"></g><g id="startzone"></g><g id="tokens"></g>
@@ -380,6 +380,7 @@ function renderLobby(r){
    1000×1000 viewBox. The carved plate (art/plate.jpg, 1254px art) is painted 8% oversize so its parchment inner —
    measured at x 191..1065, y 161..1045 of 1254 — gives the 10×10 grid a 66-unit cell; the START zone sits below. */
 const VB=1000, PLATE_S=1.08;
+const ART_V="?v=2";   // cache key for art/sprite URLs — bump when assets change (Cloudflare caches 404s for hours)
 const PLATE_IMG={ x:(VB-VB*PLATE_S)/2, size:VB*PLATE_S };
 const _in=(v)=>500+(v/1254*1000-500)*PLATE_S;
 const INNER={ x0:_in(191), x1:_in(1065), y0:_in(161), y1:_in(1045) };
@@ -410,7 +411,7 @@ function snakeCtrl(p,q,i){
 }
 const deg=(a)=>a*180/Math.PI;
 function buildBoard(r){
-  $("plate").innerHTML = `<image href="art/plate.jpg" x="${PLATE_IMG.x}" y="${PLATE_IMG.x}" width="${PLATE_IMG.size}" height="${PLATE_IMG.size}" preserveAspectRatio="none"/>`;
+  $("plate").innerHTML = `<image href="art/plate.jpg${ART_V}" x="${PLATE_IMG.x}" y="${PLATE_IMG.x}" width="${PLATE_IMG.size}" height="${PLATE_IMG.size}" preserveAspectRatio="none"/>`;
   let cells="";
   for(let n=1;n<=100;n++){
     const {x,y}=cellXY(n);
@@ -424,7 +425,7 @@ function buildBoard(r){
     cells+=`<rect x="${x-CELL/2}" y="${y-CELL/2}" width="${CELL}" height="${CELL}" rx="6" fill="${tint}" stroke="rgba(95,60,20,.55)" stroke-width="1.4"/>`;
     cells+=`<rect x="${x-CELL/2+3}" y="${y-CELL/2+3}" width="${CELL-6}" height="${(CELL-6)/2.6}" rx="5" fill="rgba(255,255,255,.22)"/>`;
     if(n!==100) cells+=`<text x="${x-CELL/2+7}" y="${y-CELL/2+18}" font-size="14" font-weight="800" fill="rgba(80,48,12,.82)" font-family="inherit">${n}</text>`;
-    else { const m=CELL*0.92; cells+=`<image href="art/medallion.png" x="${x-m/2}" y="${y-m/2}" width="${m}" height="${m}"/>`; }
+    else { const m=CELL*0.92; cells+=`<image href="art/medallion.png${ART_V}" x="${x-m/2}" y="${y-m/2}" width="${m}" height="${m}"/>`; }
   }
   let decor="";
   /* ladders: the wooden ladder sprite, stretched to the run and rotated into place */
@@ -432,7 +433,7 @@ function buildBoard(r){
     const p=cellXY(Number(a)), q=cellXY(Number(b));
     const dx=q.x-p.x, dy=q.y-p.y, len=Math.hypot(dx,dy);
     const W=CELL*0.5, H=len+CELL*0.55, ang=deg(Math.atan2(dy,dx))-90;
-    decor+=`<image href="art/ladder.png" x="${-W/2}" y="${-H/2}" width="${W}" height="${H}" preserveAspectRatio="none" transform="translate(${(p.x+q.x)/2} ${(p.y+q.y)/2}) rotate(${ang.toFixed(1)})" opacity=".97"/>`;
+    decor+=`<image href="art/ladder.png${ART_V}" x="${-W/2}" y="${-H/2}" width="${W}" height="${H}" preserveAspectRatio="none" transform="translate(${(p.x+q.x)/2} ${(p.y+q.y)/2}) rotate(${ang.toFixed(1)})" opacity=".97"/>`;
   }
   /* snakes: body segments laid along the curve from tail to head, tail tip, then the head sprite biting the high cell */
   let si=0;
@@ -449,22 +450,22 @@ function buildBoard(r){
     while(L>CELL*0.3){ const t=atLen(L), w=wTail+(wHead-wTail)*(1-L/arc); const seg=Math.max(w*2.2, CELL*0.55); segs.push({t,w,seg}); L-=seg*0.72; }
     for(const {t,w,seg} of segs){   // tail-most first so each segment overlaps the one behind it
       const pt=qPt(p,c,q,t), tn=qTan(p,c,q,t), ang=deg(Math.atan2(tn.y,tn.x));
-      decor+=`<image href="art/snake_seg.png" x="${-seg*0.55}" y="${-w/2}" width="${seg*1.1}" height="${w}" preserveAspectRatio="none" transform="translate(${pt.x.toFixed(1)} ${pt.y.toFixed(1)}) rotate(${ang.toFixed(1)})"/>`;
+      decor+=`<image href="art/snake_seg.png${ART_V}" x="${-seg*0.55}" y="${-w/2}" width="${seg*1.1}" height="${w}" preserveAspectRatio="none" transform="translate(${pt.x.toFixed(1)} ${pt.y.toFixed(1)}) rotate(${ang.toFixed(1)})"/>`;
     }
     { // tail tip: sprite tapers to the right; anchor its thick end on the curve, pointing along the travel direction
       const t=atLen(bodyEnd), pt=qPt(p,c,q,t), tn=qTan(p,c,q,t), ang=deg(Math.atan2(tn.y,tn.x));
       const h=wTail*2.6, w=h*1.28;
-      decor+=`<image href="art/snake_tail.png" x="${-w*0.12}" y="${-h*0.42}" width="${w}" height="${h}" transform="translate(${pt.x.toFixed(1)} ${pt.y.toFixed(1)}) rotate(${ang.toFixed(1)})"/>`;
+      decor+=`<image href="art/snake_tail.png${ART_V}" x="${-w*0.12}" y="${-h*0.42}" width="${w}" height="${h}" transform="translate(${pt.x.toFixed(1)} ${pt.y.toFixed(1)}) rotate(${ang.toFixed(1)})"/>`;
     }
     { // head: sprite is upright (neck at the bottom); its down axis follows the body away from the mouth cell
       const tn=qTan(p,c,q,0.02), ang=deg(Math.atan2(tn.y,tn.x))-90;
       const h=wHead*3.1, w=h*0.59;
-      decor+=`<image href="art/snake_head.png" x="${-w/2}" y="${-h*0.5}" width="${w}" height="${h}" transform="translate(${p.x} ${p.y}) rotate(${ang.toFixed(1)})"/>`;
+      decor+=`<image href="art/snake_head.png${ART_V}" x="${-w/2}" y="${-h*0.5}" width="${w}" height="${h}" transform="translate(${p.x} ${p.y}) rotate(${ang.toFixed(1)})"/>`;
     }
   }
   /* start zone: START ribbon + one seat ring per player slot */
   let sz="";
-  { const bw=190, bh=bw*0.33; sz+=`<image href="art/start.png" x="${OX+2}" y="${START_Y-bh/2}" width="${bw}" height="${bh}"/>`; }
+  { const bw=190, bh=bw*0.33; sz+=`<image href="art/start.png${ART_V}" x="${OX+2}" y="${START_Y-bh/2}" width="${bw}" height="${bh}"/>`; }
   for(let i=0;i<8;i++){ const {x,y}=startXY(i); sz+=`<circle cx="${x}" cy="${y+6}" r="17" fill="rgba(60,35,10,.22)" stroke="rgba(255,235,190,.35)" stroke-width="1.5"/>`; }
   $("cells").innerHTML=cells;
   $("decor").innerHTML=decor;
@@ -493,7 +494,7 @@ function drawTokens(r, overridePos){
       <ellipse cy="${(CELL*0.3).toFixed(1)}" rx="${(w*0.5).toFixed(1)}" ry="${(H*0.09).toFixed(1)}" fill="rgba(0,0,0,.38)"/>
       <ellipse cy="${(CELL*0.3).toFixed(1)}" rx="${(w*0.42).toFixed(1)}" ry="${(H*0.065).toFixed(1)}" fill="none" stroke="${p.color}" stroke-opacity=".9" stroke-width="2.2"/>
       ${mine?`<ellipse cy="${(CELL*0.3).toFixed(1)}" rx="${(w*0.95).toFixed(1)}" ry="${(H*0.2).toFixed(1)}" fill="url(#pickGlow)" opacity=".85"/>`:""}
-      <image href="sprites/pawn_${c}.png" x="${(-w/2).toFixed(1)}" y="${(CELL*0.3-H).toFixed(1)}" width="${w.toFixed(1)}" height="${H.toFixed(1)}" preserveAspectRatio="xMidYMax meet"/>
+      <image href="sprites/pawn_${c}.png${ART_V}" x="${(-w/2).toFixed(1)}" y="${(CELL*0.3-H).toFixed(1)}" width="${w.toFixed(1)}" height="${H.toFixed(1)}" preserveAspectRatio="xMidYMax meet"/>
       <text y="${(CELL*0.3-H*0.72).toFixed(1)}" text-anchor="middle" font-size="15" style="paint-order:stroke" stroke="rgba(0,0,0,.35)" stroke-width="2">${p.avatar}</text>
     </g></g>` };
   }).filter(Boolean).sort((a,b)=>a.y-b.y);
