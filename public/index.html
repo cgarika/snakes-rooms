@@ -7,6 +7,8 @@
 <style>
   :root{ --green:#33d17a; --red:#ff5757; --gold:#ffc233; --txt:#eef0ff; --mut:#8f97bd;
     --glassbd:rgba(255,255,255,.1); --ease:cubic-bezier(.2,0,0,1); }
+  html, body, *{ scrollbar-width:none; }
+  ::-webkit-scrollbar{ width:0; height:0; display:none; }
   *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
   body{ margin:0; min-height:100vh; color:var(--txt);
     background: radial-gradient(700px 420px at 12% -6%, rgba(51,209,122,.15), transparent 60%),
@@ -102,7 +104,17 @@
   .diestage{ width:96px; height:96px; perspective:320px; flex:none; display:flex; align-items:center; justify-content:center;
     background:url(art/dice_tray.png) center / contain no-repeat; }
   .cube{ width:48px; height:48px; margin:0; position:relative; transform-style:preserve-3d;
-    transform:rotateX(-22deg) rotateY(32deg); transition:transform 1.15s cubic-bezier(.2,.8,.25,1); will-change:transform; }
+    --px:-22deg; --py:32deg; --fx:-22deg; --fy:32deg;
+    transform:rotateX(var(--fx)) rotateY(var(--fy)); will-change:transform; }
+  /* the roll: a keyframe tumble from the previous pose to the new one (animations run even on a freshly shown
+     element, where a transition would have nothing to start from) */
+  .cube.tumble{ animation:tumble 1.1s cubic-bezier(.2,.8,.25,1) both; }
+  @keyframes tumble{
+    0%{ transform:rotateX(var(--px)) rotateY(var(--py)); }
+    35%{ transform:rotateX(calc(var(--px) + 300deg)) rotateY(calc(var(--py) + 210deg)) translateY(-8px); }
+    70%{ transform:rotateX(calc(var(--fx) - 120deg)) rotateY(calc(var(--fy) - 90deg)) translateY(-3px); }
+    100%{ transform:rotateX(var(--fx)) rotateY(var(--fy)); }
+  }
   .face{ position:absolute; width:48px; height:48px; border-radius:10px;
     background:linear-gradient(145deg,#fbf4e0,#e6d6b0 60%,#d2bf95); border:1px solid rgba(90,60,20,.35);
     box-shadow:inset 0 2px 3px rgba(255,255,255,.85), inset 0 -3px 5px rgba(120,80,30,.28); }
@@ -348,7 +360,11 @@ $("createBtn").onclick = ()=>{ const n=myName(); if(n) socket.emit("create",{ na
 $("joinBtn").onclick = ()=>{ const n=myName(); const c=$("codeIn").value.trim().toUpperCase(); if(!c) return toast("Enter the room code."); if(n) socket.emit("join",{ code:c, name:n, playerId, avatar:myAvatar }); };
 socket.on("err",(m)=>toast(m));
 socket.on("joined",({code})=>{ localStorage.setItem("snRoom",code); });
-window.addEventListener("load",()=>{ const c=localStorage.getItem("snRoom"); const n=localStorage.getItem("snName");
+window.addEventListener("load",()=>{
+  // Inside the GameNest app the shell decides the room (create / join by code): never also re-join the room saved
+  // by an earlier session, or this socket ends up in two rooms with interleaved states.
+  if (window.GN && (GN.code || GN.create || GN.prewarm)) return;
+  const c=localStorage.getItem("snRoom"); const n=localStorage.getItem("snName");
   if (c && n) socket.emit("join",{ code:c, name:n, playerId, avatar:myAvatar }); });
 
 $("botrow").addEventListener("click",(e)=>{
@@ -361,6 +377,7 @@ $("leaveGameBtn").onclick = ()=>{ if(confirm("Leave the game?")){ socket.emit("l
 
 function renderLobby(r){
   show("lobby");
+  cubeMv=0; cubeSpins=0; rollCube(null);   // new game (or rematch): die back to rest
   $("lobbyCode").textContent = "· " + r.code;
   $("pcount").textContent = `(${r.players.length}/${r.maxPlayers})`;
   const isHost = S.mySeat === r.hostSeat;
@@ -580,13 +597,20 @@ const PIP52={1:[[26,26]],2:[[14,14],[38,38]],3:[[14,14],[26,26],[38,38]],4:[[14,
 })();
 const CUBE_FINAL={1:[0,0],2:[0,-90],3:[-90,0],4:[90,0],5:[0,90],6:[0,180]};
 let cubeMv=0, cubeSpins=0;
+let cubePose=[-22,32];
 function rollCube(lm){
   const cube=$("dcube"); if(!cube) return;
-  if(!lm){ cube.style.transform="rotateX(-22deg) rotateY(32deg)"; return; }
+  /* states without a lastMove (turn passed, rejoin, fresh game) must not interrupt a tumble in flight:
+     only reset the die when nothing has been rolled yet in this game (renderLobby zeroes cubeMv on a new game) */
+  if(!lm){ if(cubeMv===0){ cubePose=[-22,32]; cube.classList.remove("tumble"); cube.style.setProperty("--fx","-22deg"); cube.style.setProperty("--fy","32deg"); } return; }
   if(lm.mv<=cubeMv) return;
   cubeMv=lm.mv; cubeSpins++;
   const f=CUBE_FINAL[lm.roll]||[0,0];
-  cube.style.transform=`rotateX(${f[0]-22+360*cubeSpins}deg) rotateY(${f[1]+32+360*(cubeSpins+1)}deg)`;
+  const next=[f[0]-22+360*cubeSpins, f[1]+32+360*(cubeSpins+1)];
+  cube.style.setProperty("--px", cubePose[0]+"deg"); cube.style.setProperty("--py", cubePose[1]+"deg");
+  cube.style.setProperty("--fx", next[0]+"deg");     cube.style.setProperty("--fy", next[1]+"deg");
+  cubePose=next;
+  cube.classList.remove("tumble"); void cube.offsetWidth; cube.classList.add("tumble");   // restart the keyframes
 }
 $("rollBtn").onclick = ()=>socket.emit("roll");
 $("rematchBtn").onclick = ()=>socket.emit("rematch");
