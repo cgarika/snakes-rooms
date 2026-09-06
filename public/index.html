@@ -75,7 +75,7 @@
     font-size:13px; font-weight:800; color:var(--mut); }
   .timer{ width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center;
     font-weight:900; font-size:13px; background:conic-gradient(var(--gold) calc(var(--pct,0)*1%), rgba(255,255,255,.08) 0); }
-  .timer span{ width:35px; height:35px; border-radius:50%; background:#161a33; display:flex; align-items:center; justify-content:center; }
+  .timer span{ width:35px; height:35px; font-size:12px; letter-spacing:-.02em; border-radius:50%; background:#161a33; display:flex; align-items:center; justify-content:center; }
   /* the carved plate is painted inside the SVG (art/plate.jpg); the wrap is just a shadowed, edge-to-edge frame */
   .boardwrap{ width:calc(100% + 20px); max-width:640px; margin:0 -10px; padding:0; background:none; border:0;
     filter:drop-shadow(0 16px 22px rgba(0,0,0,.5)); transform:translateZ(0); }
@@ -104,7 +104,7 @@
   }
   /* die sits in the wooden dice tray; ivory faces with glossy red pips, the six is the painted face itself */
   .diestage{ width:96px; height:96px; perspective:320px; flex:none; display:flex; align-items:center; justify-content:center;
-    background:url(art/dice_tray.png) center / contain no-repeat; }
+    background:url(art/dice_tray.png) center / contain no-repeat; transform:scale(.85); margin:-7px; }
   .cube{ width:48px; height:48px; margin:0; position:relative; transform-style:preserve-3d;
     --px:-22deg; --py:32deg; --fx:-22deg; --fy:32deg;
     transform:rotateX(var(--fx)) rotateY(var(--fy)); will-change:transform; }
@@ -404,7 +404,10 @@ const PLATE_IMG={ x:(VB-VB*PLATE_S)/2, size:VB*PLATE_S };
 const _in=(v)=>500+(v/1254*1000-500)*PLATE_S;
 const INNER={ x0:_in(191), x1:_in(1065), y0:_in(161), y1:_in(1045) };
 const CELL=Math.min(Math.floor((INNER.x1-INNER.x0-24)/10), Math.floor((INNER.y1-INNER.y0-92)/10)), OX=Math.round((INNER.x0+INNER.x1)/2-5*CELL), OY=Math.round(INNER.y0+14);
-const GRID_BOTTOM=OY+10*CELL, START_Y=Math.round((GRID_BOTTOM+INNER.y1)/2);
+const GRID_BOTTOM=OY+10*CELL;
+/* START is a real tile: flush under square 1, same parchment and rule as the grid, wide enough to park every pawn */
+const START_H=Math.min(CELL, Math.floor(INNER.y1-GRID_BOTTOM-8)), START_W=Math.round(CELL*1.7);
+const START_C={ x:OX+START_W/2, y:GRID_BOTTOM+4+START_H/2 };
 /* pawn sprites (public/sprites, height-normalised): seat color → sprite */
 const PAWN={ "#ff5757":"red","#33d17a":"green","#ffc233":"yellow","#5b8cff":"blue","#a78bfa":"purple","#ff8c42":"orange","#2dd4bf":"teal","#f472b6":"pink" };
 const PAWN_ASPECT={ red:.59, green:.625, yellow:.609, blue:.613, orange:.609, purple:.613, teal:.602, pink:.602 };
@@ -415,7 +418,7 @@ function cellXY(n){
   if (r%2===1) c=9-c;
   return { x:OX+c*CELL+CELL/2, y:OY+(9-r)*CELL+CELL/2 };
 }
-function startXY(seatIdx){ return { x:OX+205+seatIdx*58, y:START_Y }; }
+function startXY(){ return { x:START_C.x, y:START_C.y }; }
 function tokenOffset(idx){
   const offs=[[-12,-12],[12,-12],[-12,12],[12,12],[0,-17],[0,17],[-17,0],[17,0]];
   return offs[idx%8];
@@ -443,7 +446,7 @@ function buildBoard(r){
     cells+=`<rect x="${x-CELL/2}" y="${y-CELL/2}" width="${CELL}" height="${CELL}" rx="6" fill="url(#parch)"/>`;
     cells+=`<rect x="${x-CELL/2}" y="${y-CELL/2}" width="${CELL}" height="${CELL}" rx="6" fill="${tint}" stroke="rgba(95,60,20,.55)" stroke-width="1.4"/>`;
     cells+=`<rect x="${x-CELL/2+3}" y="${y-CELL/2+3}" width="${CELL-6}" height="${(CELL-6)/2.6}" rx="5" fill="rgba(255,255,255,.22)"/>`;
-    if(n!==100) labels+=`<rect x="${x-CELL/2+3}" y="${y-CELL/2+3}" width="${String(n).length>1?24:17}" height="17" rx="5" fill="rgba(255,246,222,.9)" stroke="rgba(95,60,20,.45)" stroke-width="1"/><text x="${x-CELL/2+7}" y="${y-CELL/2+16}" font-size="12.5" font-weight="800" fill="rgba(80,48,12,.92)" font-family="inherit">${n}</text>`;
+    if(n!==100) labels+=`<rect x="${x-CELL/2+3}" y="${y-CELL/2+3}" width="${String(n).length>1?27:19}" height="19" rx="5" fill="rgba(255,246,222,.92)" stroke="rgba(95,60,20,.45)" stroke-width="1"/><text x="${x-CELL/2+7}" y="${y-CELL/2+17.5}" font-size="14.5" font-weight="800" fill="rgba(80,48,12,.94)" font-family="inherit">${n}</text>`;
     else { const m=CELL*0.92; cells+=`<image href="art/medallion.png${ART_V}" x="${x-m/2}" y="${y-m/2}" width="${m}" height="${m}"/>`; }
   }
   let decor="";
@@ -482,11 +485,15 @@ function buildBoard(r){
       decor+=`<image href="art/snake_head.png${ART_V}" x="${-w/2}" y="${-h*0.5}" width="${w}" height="${h}" transform="translate(${p.x} ${p.y}) rotate(${ang.toFixed(1)})"/>`;
     }
   }
-  /* start zone: START ribbon + one seat ring per player slot */
+  /* start zone: one START tile flush under square 1 (pawns stand on it), the carved ribbon parked beside it */
   let sz="";
-  sz+=`<rect x="${OX}" y="${START_Y-30}" width="${10*CELL}" height="60" rx="8" fill="url(#parch)"/><rect x="${OX}" y="${START_Y-30}" width="${10*CELL}" height="60" rx="8" fill="rgba(255,244,214,.18)" stroke="rgba(95,60,20,.55)" stroke-width="1.4"/>`;
-  { const bw=190, bh=bw*0.33; sz+=`<image href="art/start.png${ART_V}" x="${OX+2}" y="${START_Y-bh/2}" width="${bw}" height="${bh}"/>`; }
-  for(let i=0;i<8;i++){ const {x,y}=startXY(i); sz+=`<circle cx="${x}" cy="${y+6}" r="17" fill="rgba(60,35,10,.22)" stroke="rgba(255,235,190,.35)" stroke-width="1.5"/>`; }
+  { const x=OX, y=START_C.y-START_H/2, w=START_W, h=START_H;
+    sz+=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" fill="url(#parch)"/><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" fill="rgba(70,150,70,.30)" stroke="rgba(95,60,20,.55)" stroke-width="1.4"/>`;
+    sz+=`<rect x="${x+3}" y="${y+3}" width="${w-6}" height="${(h-6)/2.6}" rx="5" fill="rgba(255,255,255,.22)"/>`;
+    sz+=`<rect x="${x+3}" y="${y+3}" width="44" height="17" rx="5" fill="rgba(255,246,222,.9)" stroke="rgba(95,60,20,.45)" stroke-width="1"/><text x="${x+7}" y="${y+16}" font-size="11.5" font-weight="800" letter-spacing=".06em" fill="rgba(80,48,12,.92)" font-family="inherit">START</text>`;
+    sz+=`<path d="M${x+w/2-8} ${y-2} l8 -7 l8 7" fill="none" stroke="rgba(95,60,20,.55)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+    const bw=Math.min(170, 10*CELL-w-14), bh=bw*0.33;
+    sz+=`<image href="art/start.png${ART_V}" x="${x+w+10}" y="${START_C.y-bh/2}" width="${bw}" height="${bh}" opacity=".92"/>`; }
   $("cells").innerHTML=cells;
   $("decor").innerHTML=decor;
   $("labels").innerHTML=labels;
@@ -495,12 +502,12 @@ function buildBoard(r){
 }
 function tokenPos(r, seat, posOverride){
   const pos = posOverride!==undefined ? posOverride : r.pos[seat];
-  if (pos===0){ const s=startXY(seat); return { x:s.x, y:s.y }; }
-  const c=cellXY(pos);
+  const c = pos===0 ? startXY() : cellXY(pos);
   const stack = r.players.map((p,i)=>({i,pos:(i===seat&&posOverride!==undefined)?posOverride:r.pos[i]}))
     .filter(x=>x.pos===pos && !r.players[x.i].left);
   const idx = Math.max(0, stack.findIndex(x=>x.i===seat));
   const off = stack.length>1 ? tokenOffset(idx) : [0,0];
+  if (pos===0) return { x:c.x+off[0]*1.5+(stack.length>1?(idx%2?9:-9):0), y:c.y+off[1]*0.5 };   // the wide START tile spreads the pack sideways
   return { x:c.x+off[0], y:c.y+off[1] };
 }
 function drawTokens(r, overridePos){
@@ -623,7 +630,7 @@ setInterval(()=>{
   const r=S.room;
   if(!r||!r.phaseEndsAt||r.status!=="playing"){ $("timerNum").textContent="–"; $("timer").style.setProperty("--pct",0); return; }
   const left=Math.max(0, r.phaseEndsAt-Date.now());
-  $("timerNum").textContent=Math.ceil(left/1000);
+  $("timerNum").textContent=Math.ceil(left/1000)+"s";
   const total=r._total||(r._total=left);
   $("timer").style.setProperty("--pct", Math.round((left/Math.max(total,1))*100));
 },250);
