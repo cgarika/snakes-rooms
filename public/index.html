@@ -9,6 +9,8 @@
     --glassbd:rgba(255,255,255,.1); --ease:cubic-bezier(.2,0,0,1); }
   html, body, *{ scrollbar-width:none; }
   ::-webkit-scrollbar{ width:0; height:0; display:none; }
+  :where(button, a, input, select, textarea, [role="button"], [tabindex]):focus-visible{ outline:3px solid #ffcd3c; outline-offset:3px; }
+  @media (prefers-reduced-motion:reduce){ *, *::before, *::after{ animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; scroll-behavior:auto !important; } }
   *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
   body{ margin:0; min-height:100vh; color:var(--txt);
     background: radial-gradient(700px 420px at 12% -6%, rgba(51,209,122,.15), transparent 60%),
@@ -212,7 +214,7 @@
         <pattern id="parch" patternUnits="userSpaceOnUse" x="0" y="0" width="330" height="330"><image href="art/parchment.jpg?v=2" width="330" height="330"/></pattern>
         <radialGradient id="pickGlow" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fff8c8"/><stop offset="45%" stop-color="#ffd666" stop-opacity=".55"/><stop offset="100%" stop-color="#ffc233" stop-opacity="0"/></radialGradient>
       </defs>
-      <g id="plate"></g><g id="cells"></g><g id="decor"></g><g id="startzone"></g><g id="tokens"></g>
+      <g id="plate"></g><g id="cells"></g><g id="decor"></g><g id="labels"></g><g id="startzone"></g><g id="tokens"></g>
     </svg>
   </div>
   <div class="tableedge"></div>
@@ -396,12 +398,12 @@ function renderLobby(r){
 /* ---- board geometry ----
    1000×1000 viewBox. The carved plate (art/plate.jpg, 1254px art) is painted 8% oversize so its parchment inner —
    measured at x 191..1065, y 161..1045 of 1254 — gives the 10×10 grid a 66-unit cell; the START zone sits below. */
-const VB=1000, PLATE_S=1.08;
+const VB=1000, PLATE_S=1.16;
 const ART_V="?v=2";   // cache key for art/sprite URLs — bump when assets change (Cloudflare caches 404s for hours)
 const PLATE_IMG={ x:(VB-VB*PLATE_S)/2, size:VB*PLATE_S };
 const _in=(v)=>500+(v/1254*1000-500)*PLATE_S;
 const INNER={ x0:_in(191), x1:_in(1065), y0:_in(161), y1:_in(1045) };
-const CELL=66, OX=Math.round((INNER.x0+INNER.x1)/2-5*CELL), OY=Math.round(INNER.y0+14);
+const CELL=Math.min(Math.floor((INNER.x1-INNER.x0-24)/10), Math.floor((INNER.y1-INNER.y0-92)/10)), OX=Math.round((INNER.x0+INNER.x1)/2-5*CELL), OY=Math.round(INNER.y0+14);
 const GRID_BOTTOM=OY+10*CELL, START_Y=Math.round((GRID_BOTTOM+INNER.y1)/2);
 /* pawn sprites (public/sprites, height-normalised): seat color → sprite */
 const PAWN={ "#ff5757":"red","#33d17a":"green","#ffc233":"yellow","#5b8cff":"blue","#a78bfa":"purple","#ff8c42":"orange","#2dd4bf":"teal","#f472b6":"pink" };
@@ -429,7 +431,7 @@ function snakeCtrl(p,q,i){
 const deg=(a)=>a*180/Math.PI;
 function buildBoard(r){
   $("plate").innerHTML = `<image href="art/plate.jpg${ART_V}" x="${PLATE_IMG.x}" y="${PLATE_IMG.x}" width="${PLATE_IMG.size}" height="${PLATE_IMG.size}" preserveAspectRatio="none"/>`;
-  let cells="";
+  let cells="", labels="";
   for(let n=1;n<=100;n++){
     const {x,y}=cellXY(n);
     const row=Math.floor((n-1)/10), col=(n-1)%10;
@@ -441,7 +443,7 @@ function buildBoard(r){
     cells+=`<rect x="${x-CELL/2}" y="${y-CELL/2}" width="${CELL}" height="${CELL}" rx="6" fill="url(#parch)"/>`;
     cells+=`<rect x="${x-CELL/2}" y="${y-CELL/2}" width="${CELL}" height="${CELL}" rx="6" fill="${tint}" stroke="rgba(95,60,20,.55)" stroke-width="1.4"/>`;
     cells+=`<rect x="${x-CELL/2+3}" y="${y-CELL/2+3}" width="${CELL-6}" height="${(CELL-6)/2.6}" rx="5" fill="rgba(255,255,255,.22)"/>`;
-    if(n!==100) cells+=`<text x="${x-CELL/2+7}" y="${y-CELL/2+18}" font-size="14" font-weight="800" fill="rgba(80,48,12,.82)" font-family="inherit">${n}</text>`;
+    if(n!==100) labels+=`<rect x="${x-CELL/2+3}" y="${y-CELL/2+3}" width="${String(n).length>1?24:17}" height="17" rx="5" fill="rgba(255,246,222,.9)" stroke="rgba(95,60,20,.45)" stroke-width="1"/><text x="${x-CELL/2+7}" y="${y-CELL/2+16}" font-size="12.5" font-weight="800" fill="rgba(80,48,12,.92)" font-family="inherit">${n}</text>`;
     else { const m=CELL*0.92; cells+=`<image href="art/medallion.png${ART_V}" x="${x-m/2}" y="${y-m/2}" width="${m}" height="${m}"/>`; }
   }
   let decor="";
@@ -482,10 +484,12 @@ function buildBoard(r){
   }
   /* start zone: START ribbon + one seat ring per player slot */
   let sz="";
+  sz+=`<rect x="${OX}" y="${START_Y-30}" width="${10*CELL}" height="60" rx="8" fill="url(#parch)"/><rect x="${OX}" y="${START_Y-30}" width="${10*CELL}" height="60" rx="8" fill="rgba(255,244,214,.18)" stroke="rgba(95,60,20,.55)" stroke-width="1.4"/>`;
   { const bw=190, bh=bw*0.33; sz+=`<image href="art/start.png${ART_V}" x="${OX+2}" y="${START_Y-bh/2}" width="${bw}" height="${bh}"/>`; }
   for(let i=0;i<8;i++){ const {x,y}=startXY(i); sz+=`<circle cx="${x}" cy="${y+6}" r="17" fill="rgba(60,35,10,.22)" stroke="rgba(255,235,190,.35)" stroke-width="1.5"/>`; }
   $("cells").innerHTML=cells;
   $("decor").innerHTML=decor;
+  $("labels").innerHTML=labels;
   $("startzone").innerHTML=sz;
   boardBuilt=true;
 }
@@ -510,7 +514,7 @@ function drawTokens(r, overridePos){
     return { y:t.y, s:`<g transform="translate(${t.x.toFixed(1)},${t.y.toFixed(1)})"><g class="${ov?"hop":""}">
       <ellipse cy="${(CELL*0.3).toFixed(1)}" rx="${(w*0.5).toFixed(1)}" ry="${(H*0.09).toFixed(1)}" fill="rgba(0,0,0,.38)"/>
       <ellipse cy="${(CELL*0.3).toFixed(1)}" rx="${(w*0.42).toFixed(1)}" ry="${(H*0.065).toFixed(1)}" fill="none" stroke="${p.color}" stroke-opacity=".9" stroke-width="2.2"/>
-      ${mine?`<ellipse cy="${(CELL*0.3).toFixed(1)}" rx="${(w*0.95).toFixed(1)}" ry="${(H*0.2).toFixed(1)}" fill="url(#pickGlow)" opacity=".85"/>`:""}
+      ${mine?`<ellipse cy="${(CELL*0.3).toFixed(1)}" rx="${(w*0.95).toFixed(1)}" ry="${(H*0.2).toFixed(1)}" fill="url(#pickGlow)" opacity=".85"/><ellipse cy="${(CELL*0.3).toFixed(1)}" rx="${(w*0.62).toFixed(1)}" ry="${(H*0.12).toFixed(1)}" fill="none" stroke="#ffffff" stroke-width="2.4"/>`:""}
       <image href="sprites/pawn_${c}.png${ART_V}" x="${(-w/2).toFixed(1)}" y="${(CELL*0.3-H).toFixed(1)}" width="${w.toFixed(1)}" height="${H.toFixed(1)}" preserveAspectRatio="xMidYMax meet"/>
       <text y="${(CELL*0.3-H*0.72).toFixed(1)}" text-anchor="middle" font-size="15" style="paint-order:stroke" stroke="rgba(0,0,0,.35)" stroke-width="2">${p.avatar}</text>
     </g></g>` };
