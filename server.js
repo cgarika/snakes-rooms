@@ -159,6 +159,26 @@ function stateFor(room) {
   };
 }
 function bump(room) { room.v = (room.v || 0) + 1; room.touched = Date.now(); sendState(room.code); }
+
+/* ---------- GameNest push (optional; no-op without PUSH_URL) ----------
+   The app registers a device token per socket and reports presence; players who are away or disconnected
+   get a push when it becomes their turn / a new phase starts, and when someone writes in chat. */
+const PUSH_URL = process.env.PUSH_URL || "";
+const PUSH_TITLE = 'Snakebite';
+function pushTo(p, body, data, collapse) {
+  if (!PUSH_URL || !p || !p.pushToken || p.bot || p.left) return;
+  if (!(p.away || !p.connected)) return;
+  const now = Date.now(); if (p._lastPush && now - p._lastPush < 4000) return; p._lastPush = now;
+  fetch(PUSH_URL + "/notify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token: p.pushToken, title: PUSH_TITLE, body, data: data || {}, collapse: collapse || undefined }) }).catch(() => {});
+}
+function pushTurn(room) {   // called after every state broadcast; only fires when the situation changes
+  const key = room.status + "|" + room.turn;
+  if (room._pushKey === key) return; room._pushKey = key;
+  if (room.status !== "playing") return;
+  const p = room.players[room.turn]; if (!p) return;
+  pushTo(p, "Your turn in " + PUSH_TITLE + " — room " + room.code, { code: room.code, game: PUSH_TITLE }, room.code + "-turn");
+}
+
 function sendState(code) {
   const room = rooms.get(code);
   const socks = roomSockets.get(code);
@@ -166,6 +186,7 @@ function sendState(code) {
   for (const s of socks) {
     const seat = room.players.findIndex((p) => p.id === s.data.playerId);
     s.emit("state", { room: stateFor(room), mySeat: seat, v: room.v });
+    try { pushTurn(room); } catch (_) {}
   }
 }
 
@@ -235,6 +256,9 @@ io.on("connection", (socket) => {
     bump(room);
     if (room.status === "playing") armTimer(room.code);
   });
+  socket.on("pushToken", ({ token } = {}) => { const room = currentRoom(); if (!room) return; const p = room.players.find((q) => q.id === socket.data.playerId); if (p && typeof token === "string" && /^[0-9a-f]{32,200}$/i.test(token)) p.pushToken = token; });
+  socket.on("presence", ({ away } = {}) => { const room = currentRoom(); if (!room) return; const p = room.players.find((q) => q.id === socket.data.playerId); if (p) p.away = !!away; });
+
 
   socket.on("chat", ({ t } = {}) => {
     const room = currentRoom();
@@ -246,7 +270,7 @@ io.on("connection", (socket) => {
     if (me._lastChat && now - me._lastChat < 700) return;
     me._lastChat = now;
     t = clean(t, 140); if (!t) return;
-    room.chat.push({ n: me.name, a: me.avatar, t });
+    room.chat.push({ n: me.name, a: me.avatar, t }); for (const q of room.players) if (q !== me) pushTo(q, me.name + ": " + t, { code: room.code, game: PUSH_TITLE }, room.code + "-chat");
     if (room.chat.length > 200) room.chat.splice(0, room.chat.length - 200);
     bump(room);
   });
