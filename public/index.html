@@ -490,7 +490,7 @@ function buildBoard(r){
   { const x=OX, y=START_C.y-START_H/2, w=START_W, h=START_H;
     sz+=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" fill="url(#parch)"/><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" fill="rgba(70,150,70,.30)" stroke="rgba(95,60,20,.55)" stroke-width="1.4"/>`;
     sz+=`<rect x="${x+3}" y="${y+3}" width="${w-6}" height="${(h-6)/2.6}" rx="5" fill="rgba(255,255,255,.22)"/>`;
-    sz+=`<rect x="${x+3}" y="${y+3}" width="44" height="17" rx="5" fill="rgba(255,246,222,.9)" stroke="rgba(95,60,20,.45)" stroke-width="1"/><text x="${x+7}" y="${y+16}" font-size="11.5" font-weight="800" letter-spacing=".06em" fill="rgba(80,48,12,.92)" font-family="inherit">START</text>`;
+    // the carved START ribbon beside the tile is the label — nothing on the tile itself, so pawns can never cover it
     sz+=`<path d="M${x+w/2-8} ${y-2} l8 -7 l8 7" fill="none" stroke="rgba(95,60,20,.55)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
     const bw=Math.min(170, 10*CELL-w-14), bh=bw*0.33;
     sz+=`<image href="art/start.png${ART_V}" x="${x+w+10}" y="${START_C.y-bh/2}" width="${bw}" height="${bh}" opacity=".92"/>`; }
