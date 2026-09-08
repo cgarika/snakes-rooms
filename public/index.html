@@ -226,6 +226,7 @@
     <button class="btn green" id="rollBtn">ROLL</button>
   </div>
   <div class="actionhint" id="actionhint"></div>
+  <button class="btn hidden" id="seatBackBtn" style="width:auto;margin:6px auto 0;display:block" onclick="socket.emit('takeSeat')">Take my seat back</button>
   <div class="log" id="log"></div>
   <div class="overbox hidden" id="overbox">
     <div class="cup">🏆</div>
@@ -585,14 +586,17 @@ function renderGame(r){
   $("strip").innerHTML = r.players.map((p,i)=>`
     <div class="pill${i===r.turn&&r.status==="playing"?" turn":""}${p.left?" gone":""}">
       <span class="dot" style="background:${p.color}"></span>
-      ${p.left?"💀":p.avatar} ${i===S.mySeat?"You":esc(p.name)}${p.bot?" 🤖":""}
+      ${p.left?"💀":p.avatar} ${i===S.mySeat?"You":esc(p.name)}${p.bot?" 🤖":""}${p.botControlled?' <span class="pos" title="A bot is playing this seat">🤖 bot</span>':""}
       <span class="pos">${r.pos?r.pos[i]:0}</span>
     </div>`).join("");
   $("turnwho").textContent = r.status==="playing" ? (myTurn ? "YOUR ROLL" + (r.sixes?` (six streak ${r.sixes})`:"") : `${r.players[r.turn].name}'s roll`) : "";
   rollCube(r.lastMove);
   $("rollBtn").disabled = !myTurn;
   $("rollBtn").textContent = myTurn ? "ROLL 🎲" : "waiting…";
+  const meBot = S.mySeat>=0 && r.players[S.mySeat] && r.players[S.mySeat].botControlled && r.status==="playing";
+  $("seatBackBtn").classList.toggle("hidden", !meBot);
   if (r.status==="over") $("actionhint").innerHTML="";
+  else if (meBot) $("actionhint").innerHTML = "A bot is rolling for you — <b>take your seat back</b> when you are ready.";
   else if (myTurn) $("actionhint").innerHTML = "<b>Tap ROLL.</b> Exactly 100 wins — overshoot bounces back.";
   else $("actionhint").innerHTML = "";
   $("log").textContent = r.log || "";

@@ -15,6 +15,8 @@ const PORT = process.env.PORT || 3000;
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 8;
 const TURN_MS = Number(process.env.TURN_MS || 30000);
+const AFK_MS = Math.max(200, Number(process.env.AFK_MS || 5000));   // T1: turn clock while the current player is disconnected
+const TIMEOUTS_TO_BOT = 3;                                              // consecutive timeouts before a bot takes the seat
 const BOT_MS = Math.max(1, Number(process.env.BOT_MS || 900));
 
 const LADDERS = { 4: 14, 9: 31, 20: 38, 28: 84, 40: 59, 51: 67, 63: 81, 71: 91 };
@@ -106,14 +108,40 @@ function armTimer(code) {
   clearT(timers, code);
   scheduleBot(code);
   if (!room || room.status !== "playing") { if (room) room.phaseEndsAt = null; return; }
-  room.phaseEndsAt = Date.now() + TURN_MS;
-  timers.set(code, setTimeout(() => {
-    const r = rooms.get(code);
-    if (!r || r.status !== "playing") return;
-    performRoll(r);
-    bump(r);
-    if (r.status === "playing") armTimer(code);
-  }, TURN_MS));
+  const cur = room.players[room.turn];
+  const ms = cur && !cur.bot && !cur.botControlled && !cur.connected ? AFK_MS : TURN_MS;
+  room.phaseEndsAt = Date.now() + ms;
+  timers.set(code, setTimeout(() => onTurnTimeout(code), ms));
+}
+
+/* T1 AFK policy: a timed-out turn is rolled for the player (the bot heuristic here is the roll itself);
+   three consecutive timeouts hand the seat to the bot until the human acts or reconnects. */
+function onTurnTimeout(code) {
+  const r = rooms.get(code);
+  if (!r || r.status !== "playing") return;
+  const pl = r.players[r.turn];
+  if (!pl) return;
+  let note = "";
+  if (!pl.bot && !pl.botControlled) {
+    pl.timeouts = (pl.timeouts || 0) + 1;
+    if (pl.timeouts >= TIMEOUTS_TO_BOT) { pl.botControlled = true; note = `A bot is playing for ${pl.name} (timed out ${TIMEOUTS_TO_BOT} times).`; }
+    else note = `${pl.name} ran out of time; the turn was played for them.`;
+  }
+  performRoll(r);
+  if (note) r.log = `${note} ${r.log || ""}`.trim();
+  bump(r);
+  if (r.status === "playing") armTimer(code);
+}
+
+/* The human acts (or reconnects): take the seat back from the bot and reset the timeout streak. */
+function humanIsBack(room, p, reason) {
+  const wasBot = !!p.botControlled;
+  p.timeouts = 0;
+  if (!wasBot) return false;
+  p.botControlled = false;
+  room.log = `${p.name} is back at the table${reason ? " (" + reason + ")" : ""}.`;
+  if (room.status === "playing" && room.players[room.turn] === p) { clearT(botTimers, room.code); armTimer(room.code); }
+  return true;
 }
 
 function addBotTo(room) {
@@ -129,12 +157,12 @@ function scheduleBot(code) {
   const room = rooms.get(code);
   if (!room || room.status !== "playing") return;
   const p = room.players[room.turn];
-  if (!p || !p.bot) return;
+  if (!p || !(p.bot || p.botControlled)) return;
   botTimers.set(code, setTimeout(() => {
     const r = rooms.get(code);
     if (!r || r.status !== "playing") return;
     const cur = r.players[r.turn];
-    if (!cur || !cur.bot) return;
+    if (!cur || !(cur.bot || cur.botControlled)) return;
     performRoll(r);
     bump(r);
     if (r.status === "playing") armTimer(code);
@@ -151,7 +179,7 @@ function stateFor(room) {
     minPlayers: MIN_PLAYERS, maxPlayers: MAX_PLAYERS,
     ladders: LADDERS, snakes: SNAKES,
     players: room.players.map((p, s) => ({
-      name: p.name, avatar: p.avatar, bot: !!p.bot, left: p.left, connected: p.connected,
+      name: p.name, avatar: p.avatar, bot: !!p.bot, botControlled: !!p.botControlled, left: p.left, connected: p.connected,
       color: COLORS[s % COLORS.length],
     })),
     voice: room.voice ? Array.from(room.voice) : [],
@@ -215,7 +243,7 @@ io.on("connection", (socket) => {
     if (!room) return socket.emit("err", "No room with that code.");
     socket.data.playerId = playerId;
     const existing = room.players.find((p) => p.id === playerId);
-    if (existing) { existing.connected = true; existing.left = false; attach(code); socket.emit("joined", { code }); bump(room); return; }
+    if (existing) { existing.connected = true; existing.left = false; humanIsBack(room, existing, "reconnected"); attach(code); socket.emit("joined", { code }); bump(room); if (room.status === "playing" && room.players[room.turn] === existing) armTimer(code); return; }
     if (room.status !== "lobby") return socket.emit("err", "That game already started.");
     if (room.players.length >= MAX_PLAYERS) return socket.emit("err", "Room is full (8).");
     name = clean(name, 18); if (!name) return socket.emit("err", "Pick a name first.");
@@ -251,10 +279,16 @@ io.on("connection", (socket) => {
     const room = currentRoom();
     if (!room || room.status !== "playing") return;
     const seat = room.players.findIndex((p) => p.id === socket.data.playerId);
+    if (seat >= 0 && humanIsBack(room, room.players[seat], "took the seat back")) bump(room);   // any action reclaims a bot-controlled seat
     if (seat !== room.turn) return;
     performRoll(room);
     bump(room);
     if (room.status === "playing") armTimer(room.code);
+  });
+  socket.on("takeSeat", () => {
+    const room = currentRoom(); if (!room) return;
+    const self = room.players.find((q) => q.id === socket.data.playerId);
+    if (self && humanIsBack(room, self, "took the seat back")) bump(room);
   });
   socket.on("pushToken", ({ token } = {}) => { const room = currentRoom(); if (!room) return; const p = room.players.find((q) => q.id === socket.data.playerId); if (p && typeof token === "string" && /^[0-9a-f]{32,200}$/i.test(token)) p.pushToken = token; });
   socket.on("presence", ({ away } = {}) => { const room = currentRoom(); if (!room) return; const p = room.players.find((q) => q.id === socket.data.playerId); if (p) p.away = !!away; });
@@ -347,6 +381,7 @@ io.on("connection", (socket) => {
     if (p) { p.connected = false; if (room.voice) room.voice.delete(room.players.indexOf(p)); room.v++; }
     detach();
     if (rooms.has(room.code)) sendState(room.code);
+    if (p && rooms.has(room.code) && room.status === "playing" && room.players[room.turn] === p) armTimer(room.code);   // 5 s clock while they are away
   });
 });
 
