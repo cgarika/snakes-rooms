@@ -9,9 +9,8 @@
 const { io } = require("socket.io-client");
 const URL = "http://localhost:3611";
 const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
-const LADDERS={4:14,9:31,20:38,28:84,40:59,51:67,63:81,71:91};
-const SNAKES={17:7,54:34,62:19,64:60,87:24,93:73,95:75,99:78};
-const chase=(n)=>{ let g=0; while(g++<5){ if(LADDERS[n]!==undefined)n=LADDERS[n]; else if(SNAKES[n]!==undefined)n=SNAKES[n]; else break;} return n; };
+// T12: boards are generated per game, so the audit reads the board from the room state
+const chase=(n,room)=>{ const L=room.ladders, S=room.snakes; let g=0; while(g++<5){ if(L[n]!==undefined)n=L[n]; else if(S[n]!==undefined)n=S[n]; else break;} return n; };
 
 function mk(name){
   const s = io(URL,{ transports:["websocket"] });
@@ -27,7 +26,8 @@ function mk(name){
       let b=false;
       if (landed>100){ landed=200-lm.from-lm.roll; b=true; }
       if (landed!==lm.landed || b!==lm.bounced) s.mvErrors.push(`bounce math: ${lm.from}+${lm.roll}`);
-      if (chase(landed)!==lm.to) s.mvErrors.push(`teleport math: landed ${landed} -> ${lm.to}`);
+      if (chase(landed,room)!==lm.to) s.mvErrors.push(`teleport math: landed ${landed} -> ${lm.to}`);
+      if (lm.dice && lm.dice[lm.pick]!==lm.roll) s.mvErrors.push(`T12: moved by ${lm.roll} but picked die ${lm.pick} of ${lm.dice}`);
       if (lm.via) s.sawVia=true;
       if (lm.bounced) s.sawBounce=true;
       if (lm.roll===6 && room.status==="playing" && room.turn===lm.seat) s.sawExtra=true;
@@ -131,6 +131,48 @@ async function drive(cs, cap){
         
         cs.forEach(c=>c.disconnect());
       } finally { srv.kill(); }
+    }
+    // ---- T12: seeded board generator + two-dice pick ----
+    {
+      const { genBoard } = require("../server.js");
+      const seeds = Array.from({length:20},(_,i)=>"seed-"+i+"-"+Math.random().toString(36).slice(2,8));
+      for (const seed of seeds) {
+        const b = genBoard(seed), L=b.ladders, S=b.snakes;
+        if (Object.keys(L).length!==8 || Object.keys(S).length!==8) throw new Error("T12: board needs 8 ladders and 8 snakes ("+seed+")");
+        const ends=new Set(); const use=(n)=>{ if(ends.has(n)) throw new Error("T12: cell "+n+" used twice ("+seed+")"); ends.add(n); };
+        for (const [a,b2] of Object.entries(L)) { const f=Number(a), t=Number(b2); if(!(t>f)) throw new Error("T12: ladder goes down"); if(t===100&&f<60) throw new Error("T12: ladder to 100 from "+f); if(f<2||t>100) throw new Error("T12: ladder off board"); use(f); use(t); }
+        for (const [a,b2] of Object.entries(S)) { const f=Number(a), t=Number(b2); if(!(t<f)) throw new Error("T12: snake goes up"); if(f===100) throw new Error("T12: snake from 100"); if(t<2) throw new Error("T12: snake off board"); use(f); use(t); }
+        if (ends.has(100) && !Object.values(L).includes(100)) throw new Error("T12: 100 used oddly");
+        const again = genBoard(seed); if (JSON.stringify(again)!==JSON.stringify(b)) throw new Error("T12: same seed, different board");
+      }
+      if (JSON.stringify(genBoard(seeds[0]))===JSON.stringify(genBoard(seeds[1]))) throw new Error("T12: different seeds gave the same board");
+      console.log("PASS T12 board generator — 20 seeds valid (8+8, no snake from 100, ladder→100 only from 60+, no shared cells), deterministic per seed");
+      // two dice: the chosen die moves the pawn; rejoin sees the same board (seed + features)
+      const A=mk("TA"), B=mk("TB"); await sleep(250); let code=null; A.on("joined",j=>{code=j.code;}); const pidA="tA"+Math.random();
+      A.emit("create",{name:"TA",playerId:pidA,avatar:"🐍"}); await sleep(250); B.emit("join",{code,name:"TB",playerId:"tB"+Math.random(),avatar:"🪜"}); await sleep(250);
+      B.emit("settings",{diceMode:"two"}); await sleep(150); if (A.st.diceMode==="two") throw new Error("T12: non-host changed the dice mode");
+      A.emit("settings",{diceMode:"two"}); await sleep(150); if (A.st.diceMode!=="two") throw new Error("T12: host could not set two-dice mode");
+      A.emit("start"); await sleep(250);
+      if (!A.st.seed || !A.st.ladders || Object.keys(A.st.ladders).length!==8) throw new Error("T12: game state lacks the seeded board");
+      let picks=0, rolls=0;
+      for (let k=0;k<4000 && A.st.status==="playing";k++){
+        const r=A.st; const me=[A,B].find(c=>c.seat===r.turn);
+        if (r.phase==="pick"){ const before=r.pos[r.turn]; const i=r.dice[0]===6?0:1; const other=me===A?B:A; other.emit("pick",{i:0}); me.emit("pick",{i}); const mv=r.lastMove?r.lastMove.mv:0;
+          for (let w=0;w<100 && (!A.st.lastMove || A.st.lastMove.mv===mv); w++) await sleep(5);
+          const lm=A.st.lastMove; if (!lm || lm.pick!==i || lm.roll!==r.dice[i] || lm.from!==before) throw new Error("T12: pick not applied as chosen: "+JSON.stringify({dice:r.dice,i,lm}));
+          picks++; }
+        else if (r.phase==="roll"){ me.emit("roll"); rolls++; }
+        await sleep(6);
+      }
+      if (A.st.status!=="playing" && A.st.status!=="over") throw new Error("T12: odd status "+A.st.status);
+      if (picks<3) throw new Error("T12: too few picks observed ("+picks+")");
+      for (const c of [A,B]) if (c.mvErrors.length) throw new Error(c.nm+": "+c.mvErrors[0]);
+      // rejoin: the same seed and the same board come back
+      const seed=A.st.seed, L1=JSON.stringify(A.st.ladders), S1=JSON.stringify(A.st.snakes); A.close();
+      const A2=mk("TA2"); await sleep(150); A2.emit("join",{code,name:"TA",playerId:pidA,avatar:"🐍"}); await sleep(300);
+      if (!A2.st || A2.st.seed!==seed || JSON.stringify(A2.st.ladders)!==L1 || JSON.stringify(A2.st.snakes)!==S1) throw new Error("T12: rejoin shows a different board");
+      console.log("PASS T12 two dice — "+picks+" picks applied exactly as chosen over "+rolls+" rolls; rejoin rebuilt the same board ("+seed+")");
+      [B,A2].forEach(c=>c.close());
     }
     console.log("ALL SNAKES TESTS PASS");
     process.exit(0);

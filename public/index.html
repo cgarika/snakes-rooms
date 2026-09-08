@@ -106,6 +106,9 @@
     @keyframes drift2{ to{ transform:translate(-8vw,-6vh) scale(1.12); } }
   }
   /* die sits in the wooden dice tray; ivory faces with glossy red pips, the six is the painted face itself */
+  .pickrow{ display:flex; gap:10px; }
+  .pickrow .btn{ min-width:96px; }
+  .setnote{ font-size:12.5px; color:var(--mut); font-weight:700; margin-top:6px; }
   .diestage{ width:96px; height:96px; perspective:320px; flex:none; display:flex; align-items:center; justify-content:center;
     background:url(art/dice_tray.png) center / contain no-repeat; transform:scale(.85); margin:-7px; }
   .cube{ width:48px; height:48px; margin:0; position:relative; transform-style:preserve-3d;
@@ -201,6 +204,9 @@
     <div id="plist"></div>
     <div class="label mt12">Bots</div>
     <div class="tokrow" id="botrow"></div>
+    <div class="label mt12">Dice</div>
+    <div class="tokrow" id="dicerow"></div>
+    <div class="setnote" id="dicenote"></div>
     <button class="btn green mt18" id="startBtn">Roll for it</button>
     <button class="btn plain small mt10" id="leaveLobbyBtn">Leave</button>
   </div>
@@ -224,6 +230,7 @@
   <div class="rollrow">
     <div class="diestage"><div class="cube" id="dcube"></div></div>
     <button class="btn green" id="rollBtn">ROLL</button>
+    <div class="pickrow hidden" id="pickrow"><button class="btn green" id="pick0" data-i="0"></button><button class="btn green" id="pick1" data-i="1"></button></div>
   </div>
   <div class="actionhint" id="actionhint"></div>
   <button class="btn hidden" id="seatBackBtn" style="width:auto;margin:6px auto 0;display:block" onclick="socket.emit('takeSeat')">Take my seat back</button>
@@ -348,7 +355,7 @@ function tone(f,dur,type,vol,when){
 function shake(el){ if(!el) return; el.classList.remove("jshake"); void el.offsetWidth; el.classList.add("jshake"); }
 let S = { room:null, mySeat:-1 };
 let chatOpen=false, unread=0, lastChatLen=0;
-let boardBuilt=false, animMv=0, animBusy=false, shownPos=null;
+let boardBuilt=false, builtSeed=null, animMv=0, animBusy=false, shownPos=null;
 
 const AV = ["🐍","🪜","🎲","🦊","🐼","👑","🐯","🦄","🐸","🤠","👽","🍀"];
 let myAvatar = localStorage.getItem("snAvatar") || AV[Math.floor(Math.random()*AV.length)];
@@ -378,6 +385,8 @@ $("botrow").addEventListener("click",(e)=>{
   else if (e.target.closest("#delBotBtn")) socket.emit("removeBot");
 });
 $("startBtn").onclick = ()=>socket.emit("start");
+$("dicerow").addEventListener("click",(e)=>{ const b=e.target.closest("[data-mode]"); if(b) socket.emit("settings",{diceMode:b.dataset.mode}); });
+$("pickrow").addEventListener("click",(e)=>{ const b=e.target.closest("[data-i]"); if(b) socket.emit("pick",{i:Number(b.dataset.i)}); });
 $("leaveLobbyBtn").onclick = ()=>{ socket.emit("leave"); localStorage.removeItem("snRoom"); show("home"); };
 $("leaveGameBtn").onclick = ()=>{ if(confirm("Leave the game?")){ socket.emit("leave"); localStorage.removeItem("snRoom"); leaveVoice(); show("home"); } };
 
@@ -395,6 +404,10 @@ function renderLobby(r){
   $("botrow").innerHTML = isHost
     ? `<button class="tokbtn" id="addBotBtn">🤖 Add a bot</button>` + (r.players.some(p=>p.bot)?`<button class="tokbtn" id="delBotBtn">Remove bot</button>`:"")
     : "";
+  $("dicerow").innerHTML = isHost
+    ? `<button class="tokbtn${r.diceMode!=="two"?" on":""}" data-mode="one">🎲 One die</button><button class="tokbtn${r.diceMode==="two"?" on":""}" data-mode="two">🎲🎲 Two dice, you pick</button>`
+    : `<span class="setnote">Dice: ${r.diceMode==="two"?"two dice, pick one":"one die"}</span>`;
+  $("dicenote").textContent = r.diceMode==="two" ? "Roll two dice and choose which one moves you. A six on either still rolls again." : "Classic: one die, a six rolls again.";
   $("startBtn").classList.toggle("hidden", !isHost);
   $("startBtn").disabled = r.players.length < r.minPlayers;
 }
@@ -580,7 +593,7 @@ function animateMove(r){
 function renderGame(r){
   show("game");
   $("gameCode").textContent = "· " + r.code;
-  if (!boardBuilt) buildBoard(r);
+  if (!boardBuilt || builtSeed !== (r.seed||null)) { buildBoard(r); builtSeed = r.seed||null; }
   const myTurn = r.status==="playing" && S.mySeat===r.turn;
   $("strip").classList.toggle("many", r.players.length >= 5);
   $("strip").innerHTML = r.players.map((p,i)=>`
@@ -591,12 +604,18 @@ function renderGame(r){
     </div>`).join("");
   $("turnwho").textContent = r.status==="playing" ? (myTurn ? "YOUR ROLL" + (r.sixes?` (six streak ${r.sixes})`:"") : `${r.players[r.turn].name}'s roll`) : "";
   rollCube(r.lastMove);
-  $("rollBtn").disabled = !myTurn;
-  $("rollBtn").textContent = myTurn ? "ROLL 🎲" : "waiting…";
+  const picking = r.phase==="pick" && r.dice;
+  $("rollBtn").classList.toggle("hidden", !!picking);
+  $("pickrow").classList.toggle("hidden", !picking);
+  if (picking){ $("pick0").textContent = "Use " + r.dice[0]; $("pick1").textContent = "Use " + r.dice[1]; $("pick0").disabled = $("pick1").disabled = !myTurn; }
+  $("rollBtn").disabled = !myTurn || !!picking;
+  $("rollBtn").textContent = myTurn ? (r.diceMode==="two" ? "ROLL 🎲🎲" : "ROLL 🎲") : "waiting…";
   const meBot = S.mySeat>=0 && r.players[S.mySeat] && r.players[S.mySeat].botControlled && r.status==="playing";
   $("seatBackBtn").classList.toggle("hidden", !meBot);
   if (r.status==="over") $("actionhint").innerHTML="";
   else if (meBot) $("actionhint").innerHTML = "A bot is rolling for you — <b>take your seat back</b> when you are ready.";
+  else if (myTurn && picking) $("actionhint").innerHTML = `You rolled <b>${r.dice[0]}</b> and <b>${r.dice[1]}</b> — <b>pick the die</b> that moves you.`;
+  else if (picking) $("actionhint").innerHTML = `${esc(r.players[r.turn].name)} is choosing a die…`;
   else if (myTurn) $("actionhint").innerHTML = "<b>Tap ROLL.</b> Exactly 100 wins — overshoot bounces back.";
   else $("actionhint").innerHTML = "";
   $("log").textContent = r.log || "";
