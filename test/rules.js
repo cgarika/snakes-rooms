@@ -109,6 +109,29 @@ async function drive(cs, cap){
           console.log("PASS AFK bot-controlled seat finished a full game — winner "+A.st.players[A.st.winner].name); A.disconnect(); }
       } finally { srv.kill(); }
     }
+
+    // ---- T3 host handover: host disconnects during play → another human becomes host ----
+    {
+      const { spawn } = require("child_process");
+      const P=3631, URL2="http://localhost:"+P;
+      const srv = spawn(process.execPath, ["server.js"], { env: { ...process.env, PORT:String(P), BOT_MS:"5" }, stdio:"ignore" });
+      await sleep(600);
+      const mk2=(name)=>{ const c=io(URL2,{transports:["websocket"],reconnection:false}); c.st=null; c.seat=-1; c.logs=[]; c.on("state",({room,mySeat})=>{ c.st=room; c.seat=mySeat; if(room&&room.log) c.logs.push(room.log); }); return c; };
+      const wait=async(fn,ms=6000)=>{ const t0=Date.now(); while(Date.now()-t0<ms){ if(fn()) return true; await sleep(15);} return false; };
+      try {
+        const n=2; const cs=[]; for(let i=0;i<n;i++) cs.push(mk2("H"+i)); await sleep(250); let code=null; cs[0].on("joined",j=>{code=j.code;});
+        cs[0].emit("create",{name:"H0",playerId:"h0"+Math.random(),avatar:"🦊"}); await wait(()=>code); for(let i=1;i<n;i++) cs[i].emit("join",{code,name:"H"+i,playerId:"h"+i+Math.random(),avatar:"🐼"}); await wait(()=>cs[0].st&&cs[0].st.players.length===n);
+        
+        cs[0].emit("start"); if(!(await wait(()=>cs[1].st&&cs[1].st.status==="playing"))) throw new Error("T3: game did not start");
+        if(cs[1].st.hostSeat!==cs[0].seat) throw new Error("T3: creator is not the host at start");
+        cs[0].disconnect();
+        if(!(await wait(()=>cs[1].st.hostSeat===cs[1].seat, 3000))) throw new Error("T3: host did not move to the connected human (hostSeat "+cs[1].st.hostSeat+")");
+        if(!cs[1].logs.some(l=>/is now the host/.test(l))) throw new Error("T3: no host log line");
+        console.log("PASS T3 host handover — host disconnected mid-game, next connected human is host");
+        
+        cs.forEach(c=>c.disconnect());
+      } finally { srv.kill(); }
+    }
     console.log("ALL SNAKES TESTS PASS");
     process.exit(0);
   }catch(e){ console.error("FAIL:", e.message); process.exit(1); }
