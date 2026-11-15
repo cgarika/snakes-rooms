@@ -1,13 +1,15 @@
 /*
  Snakes & Ladders — physics & rules suite (proven against v1)
  Run:  BOT_MS=5 PORT=3611 node server.js   then:  node test/rules.js
+       (or npm test: test/run.js starts the server; TEST_PORT, TEST_PORT2, TEST_PORT3 move the three ports)
  Proves: every single move's bounce math and snake/ladder teleport is
  independently recomputed and must match the server, extra roll on six,
  winner lands exactly on 100, standings ordered winner-first, and full
  bot games complete twice via rematch.
 */
 const { io } = require("socket.io-client");
-const URL = "http://localhost:3611";
+const PORT = Number(process.env.TEST_PORT || 3611), PORT2 = Number(process.env.TEST_PORT2 || 3621), PORT3 = Number(process.env.TEST_PORT3 || 3631);
+const URL = "http://localhost:" + PORT;
 const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
 // T12: boards are generated per game, so the audit reads the board from the room state
 const chase=(n,room)=>{ const L=room.ladders, S=room.snakes; let g=0; while(g++<5){ if(L[n]!==undefined)n=L[n]; else if(S[n]!==undefined)n=S[n]; else break;} return n; };
@@ -24,7 +26,8 @@ function mk(name){
       // physics audit
       let landed=lm.from+lm.roll;
       let b=false;
-      if (landed>100){ landed=200-lm.from-lm.roll; b=true; }
+      // the finish rule (2026-10-14): "reach" (the default) stops on 100; "exact" bounces back off it
+      if (landed>100){ if (room.finish==="exact"){ landed=200-lm.from-lm.roll; b=true; } else landed=100; }
       if (landed!==lm.landed || b!==lm.bounced) s.mvErrors.push(`bounce math: ${lm.from}+${lm.roll}`);
       if (chase(landed,room)!==lm.to) s.mvErrors.push(`teleport math: landed ${landed} -> ${lm.to}`);
       if (lm.dice && lm.dice[lm.pick]!==lm.roll) s.mvErrors.push(`T12: moved by ${lm.roll} but picked die ${lm.pick} of ${lm.dice}`);
@@ -59,7 +62,26 @@ async function drive(cs, cap){
     for(const c of [A,B]){ if(c.mvErrors.length) throw new Error(c.nm+": "+c.mvErrors[0]); }
     if(!A.sawVia) throw new Error("no snake/ladder ever triggered (suspicious)");
     if(!A.sawExtra) throw new Error("no extra roll on six ever observed");
-    console.log("PASS 2p physics — every move audited: bounce math ✓ teleports ✓ extra-roll-on-6 ✓ winner on 100, bounce seen:", A.sawBounce);
+    if (A.sawBounce) throw new Error("a bounce in the default reach-100 game");
+    console.log("PASS 2p physics — every move audited: finish math ✓ teleports ✓ extra-roll-on-6 ✓ winner on 100, no bounce in a reach-100 game");
+    // ---- Test 1b: the classic exact finish, set by the host in the lobby: still bounces, still audited ----
+    { const C=mk("C"),D=mk("D"); await sleep(300);
+      let code2=null; C.on("joined",j=>{code2=j.code;});
+      C.emit("create",{name:"C",playerId:"sC",avatar:"🐍"}); await sleep(250);
+      D.emit("join",{code:code2,name:"D",playerId:"sD",avatar:"🪜"}); await sleep(250);
+      D.emit("settings",{finish:"exact"}); await sleep(150); if (C.st.finish!=="reach") throw new Error("a non-host changed the finish");
+      C.emit("settings",{finish:"exact"}); await sleep(150); if (C.st.finish!=="exact") throw new Error("the host could not pick the exact finish");
+      let games=0, bounce=false;
+      while (games<40 && !bounce){   /* the real layouts end games on ladders to 100 and on snakes near it, so a bounce takes more games than the calm generator's boards did (six) */ if (games>0){ C.emit("rematch"); D.emit("rematch"); } else { C.emit("start"); }
+        // the next game, really under way: a rematch is not instant, and driving the last game's "over" ended it at once
+        for (let w=0; w<200 && !(C.st && C.st.status==="playing"); w++) await sleep(25);
+        if (!(C.st && C.st.status==="playing")) throw new Error("exact game "+(games+1)+" never started");
+        if(!await drive([C,D],30000)) throw new Error("exact game didn't finish");
+        if (C.mvErrors.length) throw new Error(C.mvErrors[0]); if (C.st.pos[C.st.winner]!==100) throw new Error("exact: winner not on 100");
+        bounce = C.sawBounce; games++; }
+      if (!bounce) throw new Error("no bounce in forty exact-finish games");
+      C.disconnect(); D.disconnect();
+      console.log("PASS exact finish — host-only setting, bounces audited ("+games+" games)"); }
     A.close(); B.close();
 
     // ---- Test 2: host + 2 bots, twice via rematch ----
@@ -81,7 +103,7 @@ async function drive(cs, cap){
     // ---- Test 3 (T1 AFK policy): own fast-clock server on 3621 ----
     {
       const { spawn } = require("child_process");
-      const TURN=700, AFK=250, P=3621, URL2="http://localhost:"+P;
+      const TURN=700, AFK=250, P=PORT2, URL2="http://localhost:"+P;
       const srv = spawn(process.execPath, ["server.js"], { env: { ...process.env, PORT:String(P), TURN_MS:String(TURN), AFK_MS:String(AFK), BOT_MS:"5" }, stdio:"ignore" });
       await sleep(600);
       const mk2=(name)=>{ const c=io(URL2,{transports:["websocket"],reconnection:false}); c.st=null; c.seat=-1; c.logs=[]; c.on("state",({room,mySeat})=>{ c.st=room; c.seat=mySeat; if(room&&room.log) c.logs.push(room.log); }); return c; };
@@ -113,7 +135,7 @@ async function drive(cs, cap){
     // ---- T3 host handover: host disconnects during play → another human becomes host ----
     {
       const { spawn } = require("child_process");
-      const P=3631, URL2="http://localhost:"+P;
+      const P=PORT3, URL2="http://localhost:"+P;
       const srv = spawn(process.execPath, ["server.js"], { env: { ...process.env, PORT:String(P), BOT_MS:"5" }, stdio:"ignore" });
       await sleep(600);
       const mk2=(name)=>{ const c=io(URL2,{transports:["websocket"],reconnection:false}); c.st=null; c.seat=-1; c.logs=[]; c.on("state",({room,mySeat})=>{ c.st=room; c.seat=mySeat; if(room&&room.log) c.logs.push(room.log); }); return c; };
@@ -138,22 +160,23 @@ async function drive(cs, cap){
       const seeds = Array.from({length:20},(_,i)=>"seed-"+i+"-"+Math.random().toString(36).slice(2,8));
       for (const seed of seeds) {
         const b = genBoard(seed), L=b.ladders, S=b.snakes;
-        if (Object.keys(L).length!==8 || Object.keys(S).length!==8) throw new Error("T12: board needs 8 ladders and 8 snakes ("+seed+")");
+        if (Object.keys(L).length<5 || Object.keys(L).length>10 || Object.keys(S).length<5 || Object.keys(S).length>13) throw new Error("board needs 5 to 10 ladders and 5 to 13 snakes ("+seed+")");
         const ends=new Set(); const use=(n)=>{ if(ends.has(n)) throw new Error("T12: cell "+n+" used twice ("+seed+")"); ends.add(n); };
-        for (const [a,b2] of Object.entries(L)) { const f=Number(a), t=Number(b2); if(!(t>f)) throw new Error("T12: ladder goes down"); if(t===100&&f<60) throw new Error("T12: ladder to 100 from "+f); if(f<2||t>100) throw new Error("T12: ladder off board"); use(f); use(t); }
-        for (const [a,b2] of Object.entries(S)) { const f=Number(a), t=Number(b2); if(!(t<f)) throw new Error("T12: snake goes up"); if(f===100) throw new Error("T12: snake from 100"); if(t<2) throw new Error("T12: snake off board"); use(f); use(t); }
+        for (const [a,b2] of Object.entries(L)) { const f=Number(a), t=Number(b2); if(!(t>f)) throw new Error("T12: ladder goes down"); if(t===100&&f<60) throw new Error("T12: ladder to 100 from "+f); if(f<1||t>100) throw new Error("T12: ladder off board"); use(f); use(t); }
+        for (const [a,b2] of Object.entries(S)) { const f=Number(a), t=Number(b2); if(!(t<f)) throw new Error("T12: snake goes up"); if(f===100) throw new Error("T12: snake from 100"); if(t<1) throw new Error("T12: snake off board"); use(f); use(t); }
         if (ends.has(100) && !Object.values(L).includes(100)) throw new Error("T12: 100 used oddly");
         const again = genBoard(seed); if (JSON.stringify(again)!==JSON.stringify(b)) throw new Error("T12: same seed, different board");
       }
-      if (JSON.stringify(genBoard(seeds[0]))===JSON.stringify(genBoard(seeds[1]))) throw new Error("T12: different seeds gave the same board");
-      console.log("PASS T12 board generator — 20 seeds valid (8+8, no snake from 100, ladder→100 only from 60+, no shared cells), deterministic per seed");
+      // (a pool of a few layouts: two seeds may well be dealt the same one, a score of seeds are not all)
+      if (new Set(seeds.map((s)=>JSON.stringify(genBoard(s)))).size < 2) throw new Error("T12: twenty different seeds all gave the same board");
+      console.log("PASS T12 board dealing — 20 seeds valid (a real layout or its mirror: 5 to 10 ladders and snakes, no snake from 100, ladder→100 only from 60+, no shared cells), deterministic per seed");
       // two dice: the chosen die moves the pawn; rejoin sees the same board (seed + features)
       const A=mk("TA"), B=mk("TB"); await sleep(250); let code=null; A.on("joined",j=>{code=j.code;}); const pidA="tA"+Math.random();
       A.emit("create",{name:"TA",playerId:pidA,avatar:"🐍"}); await sleep(250); B.emit("join",{code,name:"TB",playerId:"tB"+Math.random(),avatar:"🪜"}); await sleep(250);
       B.emit("settings",{diceMode:"two"}); await sleep(150); if (A.st.diceMode==="two") throw new Error("T12: non-host changed the dice mode");
       A.emit("settings",{diceMode:"two"}); await sleep(150); if (A.st.diceMode!=="two") throw new Error("T12: host could not set two-dice mode");
       A.emit("start"); await sleep(250);
-      if (!A.st.seed || !A.st.ladders || Object.keys(A.st.ladders).length!==8) throw new Error("T12: game state lacks the seeded board");
+      if (!A.st.seed || !A.st.ladders || Object.keys(A.st.ladders).length<5) throw new Error("T12: game state lacks the seeded board");
       let picks=0, rolls=0;
       for (let k=0;k<4000 && A.st.status==="playing";k++){
         const r=A.st; const me=[A,B].find(c=>c.seat===r.turn);

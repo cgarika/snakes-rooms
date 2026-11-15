@@ -1,0 +1,113 @@
+{
+  "note": "Snakebite's boards (2026-11-07, snakes-short): the short layouts of the owner's approved pictures A and C. ladders are [foot, top], snakes [head, tail], squares 1 to 100 on the zigzag (1 bottom left, 100 top left). Every layout keeps short_rules.js; a layout is dealt in its left-right mirror too where mirror is true (both orientations then play a good length of game, and the app plans both). layouts.js deals a game one board of this file by the game's seed. The first layout is the lobby's picture.",
+  "layouts": [
+    {
+      "id": "s01",
+      "name": "Short 1",
+      "sub": "eight ladders (most lean a column) and eight serpents, each across two or three rows and none touching another; a lone player needs 31 turns (32 in its mirror)",
+      "method": "made by tools/make-short-layouts.js (rules in short_rules.js) and planned by the app's Tools/snakes_layouts.py, which holds every serpent's S-curve and every number to the same clearances",
+      "mirror": true,
+      "ladders": [[2, 21], [3, 23], [9, 30], [35, 56], [64, 98], [69, 90], [74, 95], [79, 99]],
+      "snakes": [[26, 5], [33, 7], [44, 17], [52, 31], [62, 40], [67, 47], [85, 65], [93, 73]]
+    },
+    {
+      "id": "s02",
+      "name": "Short 2",
+      "sub": "eight ladders (most lean a column) and eight serpents, each across two or three rows and none touching another; a lone player needs 33 turns, and its mirror is not dealt",
+      "method": "made by tools/make-short-layouts.js (rules in short_rules.js) and planned by the app's Tools/snakes_layouts.py, which holds every serpent's S-curve and every number to the same clearances",
+      "mirror": false,
+      "ladders": [[5, 26], [7, 27], [32, 51], [37, 57], [42, 61], [43, 63], [73, 94], [78, 97]],
+      "snakes": [[24, 4], [29, 9], [39, 2], [66, 36], [68, 34], [85, 64], [92, 71], [99, 80]]
+    },
+    {
+      "id": "s03",
+      "name": "Short 3",
+      "sub": "eight ladders (most lean a column) and eight serpents, each across two or three rows and none touching another; a lone player needs 30 turns, and its mirror is not dealt",
+      "method": "made by tools/make-short-layouts.js (rules in short_rules.js) and planned by the app's Tools/snakes_layouts.py, which holds every serpent's S-curve and every number to the same clearances",
+      "mirror": false,
+      "ladders": [[6, 26], [8, 27], [11, 31], [40, 59], [45, 66], [61, 81], [70, 92], [75, 94]],
+      "snakes": [[22, 2], [37, 4], [52, 29], [54, 35], [64, 43], [88, 68], [96, 76], [98, 62]]
+    },
+    {
+      "id": "s04",
+      "name": "Short 4",
+      "sub": "eight ladders (most lean a column) and eight serpents, each across two or three rows and none touching another; a lone player needs 30 turns (29 in its mirror)",
+      "method": "made by tools/make-short-layouts.js (rules in short_rules.js) and planned by the app's Tools/snakes_layouts.py, which holds every serpent's S-curve and every number to the same clearances",
+      "mirror": true,
+      "ladders": [[2, 21], [9, 28], [11, 31], [36, 55], [62, 83], [68, 92], [70, 90], [80, 99]],
+      "snakes": [[25, 6], [38, 3], [47, 27], [52, 32], [59, 40], [77, 44], [94, 74], [96, 66]]
+    },
+    {
+      "id": "s05",
+      "name": "Short 5",
+      "sub": "eight ladders (most lean a column) and eight serpents, each across two or three rows and none touching another; a lone player needs 33 turns (33 in its mirror)",
+      "method": "made by tools/make-short-layouts.js (rules in short_rules.js) and planned by the app's Tools/snakes_layouts.py, which holds every serpent's S-curve and every number to the same clearances",
+      "mirror": true,
+      "ladders": [[2, 23], [9, 30], [31, 51], [34, 55], [62, 81], [73, 94], [77, 97], [78, 98]],
+      "snakes": [[26, 6], [28, 8], [45, 17], [59, 21], [64, 38], [68, 32], [86, 66], [92, 70]]
+    },
+    {
+      "id": "s06",
+      "name": "Short 6",
+      "sub": "eight ladders (most lean a column) and eight serpents, each across two or three rows and none touching another; a lone player needs 29 turns (33 in its mirror)",
+      "method": "made by tools/make-short-layouts.js (rules in short_rules.js) and planned by the app's Tools/snakes_layouts.py, which holds every serpent's S-curve and every number to the same clearances",
+      "mirror": true,
+      "ladders": [[2, 21], [6, 26], [8, 27], [32, 51], [40, 60], [66, 87], [78, 98], [80, 99]],
+      "snakes": [[23, 4], [29, 9], [44, 16], [55, 35], [63, 39], [73, 48], [92, 70], [96, 65]]
+    },
+    {
+      "id": "s07",
+      "name": "Short 7",
+      "sub": "eight ladders (most lean a column) and eight serpents, each across two or three rows and none touching another; a lone player needs 30 turns (30 in its mirror)",
+      "method": "made by tools/make-short-layouts.js (rules in short_rules.js) and planned by the app's Tools/snakes_layouts.py, which holds every serpent's S-curve and every number to the same clearances",
+      "mirror": true,
+      "ladders": [[5, 37], [9, 30], [33, 54], [58, 79], [61, 81], [68, 92], [70, 90], [76, 96]],
+      "snakes": [[23, 2], [28, 8], [42, 20], [46, 15], [52, 31], [65, 44], [94, 67], [98, 77]]
+    },
+    {
+      "id": "s08",
+      "name": "Short 8",
+      "sub": "eight ladders (most lean a column) and eight serpents, each across two or three rows and none touching another; a lone player needs 33 turns, and its mirror is not dealt",
+      "method": "made by tools/make-short-layouts.js (rules in short_rules.js) and planned by the app's Tools/snakes_layouts.py, which holds every serpent's S-curve and every number to the same clearances",
+      "mirror": false,
+      "ladders": [[2, 21], [34, 53], [38, 64], [45, 66], [50, 70], [62, 81], [76, 95], [78, 99]],
+      "snakes": [[23, 3], [27, 7], [32, 9], [36, 5], [59, 40], [87, 67], [92, 69], [97, 77]]
+    },
+    {
+      "id": "s09",
+      "name": "Short 9",
+      "sub": "eight ladders (most lean a column) and eight serpents, each across two or three rows and none touching another; a lone player needs 30 turns (35 in its mirror)",
+      "method": "made by tools/make-short-layouts.js (rules in short_rules.js) and planned by the app's Tools/snakes_layouts.py, which holds every serpent's S-curve and every number to the same clearances",
+      "mirror": true,
+      "ladders": [[2, 23], [9, 30], [20, 40], [42, 61], [46, 66], [47, 67], [56, 84], [70, 92]],
+      "snakes": [[33, 8], [35, 6], [44, 17], [52, 31], [78, 58], [88, 68], [95, 75], [99, 80]]
+    },
+    {
+      "id": "s10",
+      "name": "Short 10",
+      "sub": "eight ladders (most lean a column) and eight serpents, each across two or three rows and none touching another; a lone player needs 32 turns (34 in its mirror)",
+      "method": "made by tools/make-short-layouts.js (rules in short_rules.js) and planned by the app's Tools/snakes_layouts.py, which holds every serpent's S-curve and every number to the same clearances",
+      "mirror": true,
+      "ladders": [[2, 21], [4, 25], [9, 30], [36, 55], [40, 60], [71, 92], [73, 93], [78, 97]],
+      "snakes": [[23, 3], [28, 7], [47, 15], [63, 39], [69, 32], [76, 44], [95, 67], [99, 80]]
+    },
+    {
+      "id": "s11",
+      "name": "Short 11",
+      "sub": "eight ladders (most lean a column) and eight serpents, each across two or three rows and none touching another; a lone player needs 30 turns, and its mirror is not dealt",
+      "method": "made by tools/make-short-layouts.js (rules in short_rules.js) and planned by the app's Tools/snakes_layouts.py, which holds every serpent's S-curve and every number to the same clearances",
+      "mirror": false,
+      "ladders": [[3, 24], [9, 30], [31, 51], [35, 54], [39, 60], [61, 81], [70, 92], [78, 99]],
+      "snakes": [[22, 2], [26, 5], [33, 7], [63, 38], [65, 36], [88, 52], [95, 67], [97, 77]]
+    },
+    {
+      "id": "s12",
+      "name": "Short 12",
+      "sub": "eight ladders (most lean a column) and eight serpents, each across two or three rows and none touching another; a lone player needs 30 turns, and its mirror is not dealt",
+      "method": "made by tools/make-short-layouts.js (rules in short_rules.js) and planned by the app's Tools/snakes_layouts.py, which holds every serpent's S-curve and every number to the same clearances",
+      "mirror": false,
+      "ladders": [[2, 21], [9, 28], [18, 39], [45, 66], [69, 90], [74, 95], [76, 96], [78, 97]],
+      "snakes": [[35, 6], [37, 4], [52, 30], [54, 33], [62, 41], [64, 43], [93, 68], [99, 80]]
+    }
+  ]
+}
