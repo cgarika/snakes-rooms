@@ -438,7 +438,7 @@ async function part2() {
       assert.strictEqual(A.state.turn, 1, "one roll as ever");
       assert.deepStrictEqual(Object.keys(A.state.lastMove).sort(), ["bounced", "from", "landed", "mv", "roll", "seat", "to", "via"]);
       assert.strictEqual(A.used.length + B.used.length, 0);
-      assert.deepStrictEqual(Object.keys(A.state).slice(-10), ["features", "serverNow", "finish", "reactionsOn", "reactions", "ranked", "rankedModel", "rankedOn", "waiting", "waitPos"], "the state ends as it always did");
+      assert.deepStrictEqual(Object.keys(A.state).slice(-11), ["features", "serverNow", "finish", "reactionsOn", "reactions", "ranked", "rankedModel", "rankedOn", "gnVoice", "waiting", "waitPos"], "the state ends as it always did");
       bye(A, B);
     });
 
@@ -535,7 +535,7 @@ async function part2() {
       assert.strictEqual(B.state.mode, "power");
       assert.deepStrictEqual(B.state.power.me.stock, { antidote: 0, ladder: 0, reroll: 0 }, "it owns nothing here, whatever it sends");
       const OLDKEYS = ["code", "status", "phase", "turn", "sixes", "diceMode", "dice", "seed", "pos", "lastMove", "winner", "standings", "log", "phaseEndsAt", "hostSeat", "minPlayers", "maxPlayers", "ladders", "snakes", "players", "voice", "chat",
-        "features", "serverNow", "finish", "reactionsOn", "reactions", "ranked", "rankedModel", "rankedOn", "waiting", "waitPos"];
+        "features", "serverNow", "finish", "reactionsOn", "reactions", "ranked", "rankedModel", "rankedOn", "gnVoice", "waiting", "waitPos"];
       const keys = Object.keys(B.state);
       assert.deepStrictEqual(keys.slice(0, -2), OLDKEYS.filter((k) => keys.includes(k)), "every older field, in its old order");
       assert.deepStrictEqual(keys.slice(-2), ["mode", "power"], "the new fields come after every older one");

@@ -79,8 +79,8 @@ function assert(cond, msg) { if (!cond) throw new Error(msg); }
       assert(A.st.players[0].avatar === fam, "avatar is one whole sticker");
       assert(typeof A.st.serverNow === "number" && Math.abs(A.st.serverNow - Date.now()) < 2000, "serverNow is the server's clock");
       const OLD = ["code", "status", "phase", "turn", "sixes", "diceMode", "dice", "seed", "pos", "lastMove", "winner", "standings", "log", "phaseEndsAt", "hostSeat", "minPlayers", "maxPlayers", "ladders", "snakes", "players", "voice", "chat"];
-      const keys = Object.keys(A.st), head = keys.slice(0, -10);   // a lobby leaves turn, lastMove, winner and standings unset, as before
-      assert(keys.slice(-10).join() === "features,serverNow,finish,reactionsOn,reactions,ranked,rankedModel,rankedOn,waiting,waitPos" && head.join() === OLD.filter((k) => head.includes(k)).join() && head.every((k) => OLD.includes(k)), "old fields unchanged and first, new ones after: " + keys);
+      const keys = Object.keys(A.st), head = keys.slice(0, -11);   // a lobby leaves turn, lastMove, winner and standings unset, as before
+      assert(keys.slice(-11).join() === "features,serverNow,finish,reactionsOn,reactions,ranked,rankedModel,rankedOn,gnVoice,waiting,waitPos" && head.join() === OLD.filter((k) => head.includes(k)).join() && head.every((k) => OLD.includes(k)), "old fields unchanged and first, new ones after: " + keys);
       assert(A.st.features.includes("calmBoards") && A.st.features.includes("refusalCodes"), "features");
       A.emit("addBot"); A.emit("start");
       await until(() => A.st.status === "playing");

@@ -4,7 +4,7 @@
   "description": "",
   "main": "server.js",
   "scripts": {
-    "test": "node test/run.js && node test/moderation.js && node test/plus_look.js && node test/plus_wallet.js && node test/power.js && node test/roomcode.js",
+    "test": "node test/run.js && node test/moderation.js && node test/plus_look.js && node test/plus_wallet.js && node test/power.js && node test/roomcode.js && node test/voice.js && node test/friendsplayed.js",
     "start": "node server.js",
     "board-stats": "node tools/board-stats.js 300"
   },
