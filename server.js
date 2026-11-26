@@ -107,7 +107,7 @@ const capAvatar = (s) => capText(s, AVATAR_MAX, true);
    name_required, not_enough_players; the same names as the other GameNest servers). */
 function refuse(socket, code, message, op) { socket.emit("refusal", { code, message, op }); socket.emit("err", message, { code, op }); }
 /* What this server can do beyond what today's app knows, so a newer client can tell before it relies on it. */
-const FEATURES = Object.freeze(["calmBoards", "refusalCodes", "serverNow", "waitList", "finishRule", "reactions", "power"]);
+const FEATURES = Object.freeze(["calmBoards", "refusalCodes", "serverNow", "waitList", "finishRule", "reactions", "power", "sixRule"]);
 /* How a game ends (the owner, 2026-10-14, after the reviewers: the bounce at the end dragged on, half of games four
    turns or more of it): "reach", the default, wins on any roll that reaches or passes 100; "exact", the classic, must
    land on 100 exactly and bounces back off it. The host picks in the lobby. */
@@ -135,10 +135,21 @@ function setupGame(room) {
 
 /* ---------- Power mode (2026-11-13; power.js has the rules that never bend) ----------
    All three are tapped on your turn, before you roll. Antidote: your pawn wears it until one bite does nothing (the pawn
-   stays on the snake's head). Ladder boost: your pawn wears it until a move of yours ends exactly one square before or
-   after a ladder's foot (and not on a snake's head or a ladder's foot); the pawn then hops to the foot and climbs, the
-   taller climb when two are in reach. Re-roll: you roll twice this turn: the first time the turn would pass, it does not
-   (a first move that wins ends the game). One of each mark at a time for a player; the marks belong to the seat's pawn. */
+   stays on the snake's head). Ladder boost: your pawn wears it until a move of yours ends one square from a ladder's foot
+   (qa1126, 2026-11-25: any square touching the foot on the board, beside it, above or below it, as a player sees "1 square
+   away"; before, only the squares numbered one before and one after it, and never a snake's head, so a third of the boosts
+   bought were never used by the end of the game) on a square that is not a ladder's foot itself; the pawn then hops to the
+   foot and climbs, the taller climb when two are in reach, and a boost on a snake's head hops off it before the bite. Only a
+   ladder that takes the pawn higher than it stands. Re-roll: one more roll this turn: the first time the turn would pass,
+   it does not (a first move that wins ends the game); that roll is the turn's last, a six on it included. One of each mark
+   at a time for a player; the marks belong to the seat's pawn.
+
+   The turn (qa1126, 2026-11-25, the owner: "sometimes the user gets 3 turns"): one roll; a six rolls again; the third six
+   in a row is void (the pawn stays where it is) and the turn passes, the classic rule (until then the third six moved the
+   pawn too). With two dice the six that rolls again is the die the pawn moves by (doubles included); a six on the die left
+   unused gave a free roll before. So a turn is at most three rolls, and one more with a Re-roll. A table where every person's
+   app says "sixRule" in its caps plays it; one with an older app (which walks a third six's pawn before it hears of a void
+   move) keeps the rule it was built for, every six rolling again and the third one moving and passing. */
 const POWER_NAMES = { antidote: "an Antidote", ladder: "a Ladder boost", reroll: "a Re-roll" };
 
 function setupPower(room) {
@@ -225,8 +236,8 @@ function landOn(room, seat, landed) {
   const { ladders, snakes } = boardOf(room);
   const out = { end: landed, kind: null, from: null };
   let n = landed;
-  if (marks.ladder && n < 100 && ladders[n] === undefined && snakes[n] === undefined) {
-    const feet = [n - 1, n + 1].filter((f) => ladders[f] !== undefined);
+  if (marks.ladder && n < 100 && ladders[n] === undefined) {
+    const feet = touching(n).filter((f) => ladders[f] !== undefined && ladders[f] > n);
     if (feet.length) {
       const foot = feet.reduce((a, b) => (ladders[b] - b >= ladders[a] - a ? b : a));   // the taller climb; the same height, the one ahead
       out.boost = { from: n, foot };
@@ -244,6 +255,14 @@ function landOn(room, seat, landed) {
   }
   out.end = n;
   return out;
+}
+
+/* The squares touching square n on the board (beside it in its row, and above and below it): the boustrophedon board's
+   rows run left to right from 1, then right to left, and so on. n - 1 and n + 1 are always among them. */
+function touching(n) {
+  const row = Math.floor((n - 1) / 10), off = (n - 1) % 10, col = row % 2 ? 9 - off : off;
+  const at = (r, c) => (r < 0 || r > 9 || c < 0 || c > 9 ? 0 : r * 10 + (r % 2 ? 9 - c : c) + 1);
+  return [at(row, col - 1), at(row, col + 1), at(row - 1, col), at(row + 1, col)].filter((q) => q >= 1 && q <= 100);
 }
 
 function chase(room, n) {
@@ -266,6 +285,9 @@ function nextTurn(room) {
   room.sixes = 0;
   if (room.pw) { room.pw.turnUsed = false; room.pw.again = false; room.pw.now = false; }
 }
+/* The turn's rule (qa1126): the classic one where every person at the table has an app that knows it ("sixRule" in its caps). */
+const saysSixRule = (caps) => Array.isArray(caps) && caps.includes("sixRule");
+function sixRule(room) { return room.players.every((p) => p.bot || p.left || p.sixRule); }
 /* a die: the tests' next one (TEST_HOOKS), or a fair one */
 function rollDie(room) { return room.testDice && room.testDice.length ? room.testDice.shift() : crypto.randomInt(1, 7); }
 
@@ -305,6 +327,20 @@ function applyMove(room, dice, pick) {
   const pl = room.players[seat];
   const roll = dice[pick];
   const from = room.pos[seat];
+  const rerolled = !!(room.pw && room.pw.now);   // the Re-roll's roll: the turn's last
+  const rule = sixRule(room);
+  if (room.pw) room.pw.now = false;
+  /* Power mode's re-roll: the first time the turn would pass, it does not; the roll to come is the re-roll's */
+  const again = () => { if (!room.pw || !room.pw.again) return false; room.pw.again = false; room.pw.now = true; return true; };
+  if (rule && roll === 6 && !rerolled && (room.sixes || 0) >= 2) {
+    /* the third six in a row is void: the pawn stays, the turn passes ("Three sixes" is what every app looks for) */
+    room.sixes = 3;
+    room.lastMove = { seat, roll, dice: dice.length > 1 ? dice.slice() : undefined, pick: dice.length > 1 ? pick : undefined, from, landed: from, to: from, bounced: false, via: null, voided: true, mv: (room.lastMove ? room.lastMove.mv : 0) + 1 };
+    const rolled = dice.length > 1 ? `rolled ${dice[0]} and ${dice[1]}, the third 6` : "rolled a third 6";
+    if (again()) room.log = `${pl.name} ${rolled}. Three sixes: no move. Re-roll: roll again.`;
+    else { room.log = `${pl.name} ${rolled}. Three sixes — turn passes.`; nextTurn(room); }
+    return;
+  }
   let landed = from + roll;
   let bounced = false;
   if (landed > 100) { if (isExact(room)) { landed = 200 - from - roll; bounced = true; } else landed = 100; }
@@ -314,7 +350,7 @@ function applyMove(room, dice, pick) {
   /* Power mode, only when it happens (a Classic move is what it always was): the boost's hop, the bite that did nothing, the re-roll's roll */
   if (t.boost) room.lastMove.boost = t.boost;
   if (t.noBite !== undefined) room.lastMove.noBite = t.noBite;
-  if (room.pw && room.pw.now) { room.lastMove.reroll = true; room.pw.now = false; }
+  if (rerolled) room.lastMove.reroll = true;
   const rolled = dice.length > 1 ? `rolled ${dice[0]} and ${dice[1]}, used the ${roll}` : `rolled ${roll}`;
   let msg = `${pl.name} ${rolled}` + (bounced ? " — too far! Bounced back" : "") + `.`;
   if (t.kind === "ladder") msg = `${pl.name} ${rolled} and climbed a ladder ${t.from} → ${t.end}! 🪜`;
@@ -337,13 +373,20 @@ function applyMove(room, dice, pick) {
     clearT(timers, room.code); clearT(botTimers, room.code);
     return;
   }
-  /* Power mode's re-roll: the first time the turn would pass, it does not; the roll to come is the re-roll's */
-  const again = () => { if (!room.pw || !room.pw.again) return false; room.pw.again = false; room.pw.now = true; room.sixes = 0; msg += " Re-roll: roll again."; return true; };
-  if (dice.includes(6)) {
-    room.sixes++;
-    if (room.sixes >= 3) { if (!again()) { msg += " Three sixes — turn passes."; nextTurn(room); } }
-    else msg += " Six! Roll again.";
-  } else if (!again()) nextTurn(room);
+  /* a six rolls again (the die the pawn moved by; never the re-roll's roll, the turn's last); anything else ends the turn, unless a re-roll is waiting */
+  if (!rule) {   // an older app at the table: the rule it was built for (any die's six rolls again; the third moves, then passes; the re-roll keeps the turn once more)
+    if (dice.includes(6)) {
+      room.sixes++;
+      if (room.sixes >= 3) { if (again()) { room.sixes = 0; msg += " Re-roll: roll again."; } else { msg += " Three sixes — turn passes."; nextTurn(room); } }
+      else msg += " Six! Roll again.";
+    } else if (again()) { room.sixes = 0; msg += " Re-roll: roll again."; } else nextTurn(room);
+    room.log = msg;
+    return;
+  }
+  room.sixes = roll === 6 ? (room.sixes || 0) + 1 : 0;
+  if (roll === 6 && !rerolled) msg += " Six! Roll again.";
+  else if (again()) msg += " Re-roll: roll again.";
+  else nextTurn(room);
   room.log = msg;
 }
 
@@ -474,7 +517,7 @@ function takeLeftSeats(room) {
     const w = room.waiting.shift();
     // The seat keeps its game (its place, its cards, its score); only who sits in it changes.
     room.players[seat] = Object.assign({}, old, { id: w.id, name: w.name, avatar: w.avatar, bot: false, botControlled: false,
-      left: false, connected: true, plus: w.plus, acct: w.acct, look: w.look, timeouts: 0, pw: w.pw || Power.seat(null, null) });
+      left: false, connected: true, plus: w.plus, acct: w.acct, look: w.look, timeouts: 0, pw: w.pw || Power.seat(null, null), sixRule: !!w.sixRule });
     room.log = `${w.name} took ${old.name}'s seat.`;
     seated = true;
   }
@@ -488,7 +531,7 @@ function seatTheLine(room) {
       room.players.splice(bot, 1);
     }
     const w = room.waiting.shift();
-    room.players.push({ id: w.id, name: w.name, avatar: w.avatar, bot: false, left: false, connected: true, plus: w.plus, acct: w.acct, look: w.look, pw: w.pw || Power.seat(null, null) });
+    room.players.push({ id: w.id, name: w.name, avatar: w.avatar, bot: false, left: false, connected: true, plus: w.plus, acct: w.acct, look: w.look, pw: w.pw || Power.seat(null, null), sixRule: !!w.sixRule });
   }
 }
 function lineState(room, st, playerId, seat) {
@@ -579,7 +622,7 @@ io.on("connection", (socket) => {
     const code = Plus.crewCode({ plus, crew }, rooms, newCode);   // GameNest Plus's crew code (2026-10-17)
     const room = { code, status: "lobby", host: playerId, players: [], chat: [], log: "", v: 1, touched: Date.now(), voice: new Set() };
     if (mode === "power" && Power.knows(caps)) room.mode = "power";   // Power mode from the start is quick play's; a private room's host picks it in the lobby (settings)
-    room.players.push({ id: playerId, name, avatar: capAvatar(avatar) || "\u{1F40D}", bot: false, left: false, connected: true, pw: Power.seat(caps, power) });
+    room.players.push({ id: playerId, name, avatar: capAvatar(avatar) || "\u{1F40D}", bot: false, left: false, connected: true, pw: Power.seat(caps, power), sixRule: saysSixRule(caps) });
     rooms.set(code, room);
     socket.data.playerId = playerId;
     attach(code);
@@ -595,7 +638,7 @@ io.on("connection", (socket) => {
     const existing = room.players.find((p) => p.id === playerId);
     if (existing) {
       if (!existing.pw) existing.pw = Power.seat(caps, null);
-      if (caps !== undefined) existing.pw.knows = Power.knows(caps);
+      if (caps !== undefined) { existing.pw.knows = Power.knows(caps); existing.sixRule = saysSixRule(caps); }
       Power.take(existing.pw, power, room.pw && room.pw.game);   // back with their stock as their phone has it
       existing.connected = true; existing.left = false; humanIsBack(room, existing, "reconnected"); attach(code); stampPlus(code, socket, { plus, look }); socket.emit("joined", { code });
       if (room.status === "playing" && room.players[room.turn] === existing) armTimer(code);   // GN-10: the deadline before the state
@@ -610,7 +653,7 @@ io.on("connection", (socket) => {
       if (!w) {
         if (room.players.filter((p) => !p.left).length + room.waiting.length >= MAX_PLAYERS * 2) return refuse(socket, "full", "Room is full.", "join");
         name = capName(name); if (!name) return refuse(socket, "name_required", "Pick a name first.", "join"); name = Moderation.name(name);
-        w = { id: playerId, name, avatar: capAvatar(avatar) || "\u{1F40D}", plus: plus === true, acct: Plus.acctOf(socket), look: Plus.cleanLook(look), pw: Power.seat(caps, power) };
+        w = { id: playerId, name, avatar: capAvatar(avatar) || "\u{1F40D}", plus: plus === true, acct: Plus.acctOf(socket), look: Plus.cleanLook(look), pw: Power.seat(caps, power), sixRule: saysSixRule(caps) };
         room.waiting.push(w);
         room.log = `${name} is waiting for a seat.`;
       }
@@ -622,7 +665,7 @@ io.on("connection", (socket) => {
     }
     if (room.players.length >= MAX_PLAYERS) return refuse(socket, "full", "Room is full (8).", "join");
     name = capName(name); if (!name) return refuse(socket, "name_required", "Pick a name first.", "join"); name = Moderation.name(name);
-    room.players.push({ id: playerId, name, avatar: capAvatar(avatar) || "\u{1F40D}", bot: false, left: false, connected: true, pw: Power.seat(caps, power) });
+    room.players.push({ id: playerId, name, avatar: capAvatar(avatar) || "\u{1F40D}", bot: false, left: false, connected: true, pw: Power.seat(caps, power), sixRule: saysSixRule(caps) });
     attach(code);
     stampPlus(code, socket, { plus, look }); socket.emit("joined", { code });
     room.log = `${name} joined.`;
@@ -846,4 +889,4 @@ if (require.main === module) server.listen(PORT, () => console.log("Snakes & Lad
 function layoutOf(seed) { const b = Layouts.pick(seed); return { id: b.id, mirrored: b.mirrored }; }
 
 module.exports = { genBoard, layoutOf, botPickDie, chase, capName, capAvatar, FEATURES, botThinkMs, LADDERS, SNAKES,
-  Power, rooms, roomSockets, timers, botTimers, setupGame, setupPower, powerCan, powerView, powerMe, usePower, botPower, landOn, performRoll, applyMove, pickDie, nextTurn, onTurnTimeout };
+  Power, rooms, roomSockets, timers, botTimers, setupGame, setupPower, powerCan, powerView, powerMe, usePower, botPower, landOn, touching, sixRule, performRoll, applyMove, pickDie, nextTurn, onTurnTimeout };

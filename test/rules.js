@@ -24,6 +24,11 @@ function mk(name){
     if (lm && lm.mv>s.lastMv){
       s.lastMv=lm.mv;
       // physics audit
+      if (lm.voided){   // the third six in a row is void (qa1126): the pawn stays, the turn passes
+        if (lm.roll!==6 || lm.landed!==lm.from || lm.to!==lm.from) s.mvErrors.push(`void six moved: ${JSON.stringify(lm)}`);
+        if (room.status==="playing" && room.turn===lm.seat && !/Re-roll/.test(room.log)) s.mvErrors.push(`void six kept the turn: ${room.log}`);
+        return;
+      }
       let landed=lm.from+lm.roll;
       let b=false;
       // the finish rule (2026-10-14): "reach" (the default) stops on 100; "exact" bounces back off it

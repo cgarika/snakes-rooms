@@ -23,7 +23,7 @@ const until = async (fn, ms = 4000, step = 15) => { const t0 = Date.now(); while
 const LADDERS = { 10: 30, 12: 50, 40: 60, 82: 92, 84: 94 }, SNAKES = { 25: 5, 70: 55, 98: 78 };
 let nTable = 0;
 function table(o = {}) {
-  const seat = (id, stock, bot) => Object.assign({ id, name: id, avatar: "x", left: false, connected: true, pw: S.Power.seat(bot ? null : ["power"], stock || null) }, bot ? { bot: true } : { bot: false });
+  const seat = (id, stock, bot) => Object.assign({ id, name: id, avatar: "x", left: false, connected: true, pw: S.Power.seat(bot ? null : ["power"], stock || null), sixRule: !o.oldApp }, bot ? { bot: true } : { bot: false });
   const room = { code: "PWT" + (++nTable), mode: o.mode || "power", status: "playing", host: "Ava", chat: [], log: "", v: 1, touched: Date.now(), voice: new Set(),
     players: [seat("Ava", o.a, o.aBot), seat("Ben", o.b, o.bBot)], ladders: LADDERS, snakes: SNAKES, dice: null, diceMode: o.diceMode || "one", finish: o.finish,
     pos: (o.pos || [0, 0]).slice(), turn: o.turn || 0, sixes: 0, lastMove: null, winner: null, standings: null, testDice: (o.dice || []).slice() };
@@ -158,6 +158,37 @@ async function part1() {
     assert.deepStrictEqual(room.lastMove.boost, { from: 95, foot: 94 });
     assert.strictEqual(room.pos[0], 96);
   });
+  await ok("ladder boost (qa1126): a foot touching the square from above or below counts as one square away", () => {
+    // 29 is in the row 21-30 (left to right); above it, in the row 31-40 (right to left), is 32; below it, 12 (11-20 runs right to left)
+    assert.deepStrictEqual(S.touching(29).sort((a, b) => a - b), [12, 28, 30, 32]);
+    assert.deepStrictEqual(S.touching(1).sort((a, b) => a - b), [2, 20]);
+    assert.deepStrictEqual(S.touching(100).sort((a, b) => a - b), [81, 99]);
+    const room = table({ a: FULL, pos: [24, 0], dice: [5] });
+    room.ladders = { 32: 52 }; room.snakes = { 25: 5 };
+    assert.strictEqual(S.usePower(room, "ladder"), null);
+    S.performRoll(room);   // 29: the foot at 32 is the square above it
+    assert.deepStrictEqual(room.lastMove.boost, { from: 29, foot: 32 });
+    assert.strictEqual(room.pos[0], 52);
+    assert.strictEqual(room.pw.marks[0].ladder, false);
+  });
+  await ok("ladder boost (qa1126): on a snake's head one square from a foot, the hop comes before the bite", () => {
+    const room = table({ a: FULL, pos: [20, 0], dice: [4] });
+    room.ladders = { 25: 45 }; room.snakes = { 24: 4 };
+    assert.strictEqual(S.usePower(room, "ladder"), null);
+    S.performRoll(room);   // 24: a head, beside the foot at 25
+    assert.deepStrictEqual(room.lastMove.boost, { from: 24, foot: 25 });
+    assert.deepStrictEqual(room.lastMove.via, { kind: "ladder", from: 25, to: 45 });
+    assert.strictEqual(room.pos[0], 45);
+  });
+  await ok("ladder boost (qa1126): never a ladder that ends lower than the pawn stands", () => {
+    const room = table({ a: FULL, pos: [30, 0], dice: [5] });
+    room.ladders = { 26: 34 }; room.snakes = {};
+    assert.strictEqual(S.usePower(room, "ladder"), null);
+    S.performRoll(room);   // 35 stands above 26 (whose ladder ends at 34): no hop
+    assert.strictEqual(room.lastMove.boost, undefined);
+    assert.strictEqual(room.pos[0], 35);
+    assert.strictEqual(room.pw.marks[0].ladder, true, "the boost waits");
+  });
   await ok("re-roll: tapped before the roll, the player rolls twice this turn, and the second roll is marked", () => {
     const room = table({ a: FULL, pos: [1, 1], dice: [2, 3, 4] });
     assert.strictEqual(S.usePower(room, "reroll"), null);
@@ -199,13 +230,86 @@ async function part1() {
     S.performRoll(room);
     assert.strictEqual(room.lastMove.reroll, true);
     assert.strictEqual(room.turn, 1);
-    const three = table({ a: FULL, pos: [1, 1], dice: [6, 6, 6, 1] });
+    const three = table({ a: FULL, pos: [1, 1], dice: [6, 6, 6, 6] });
     assert.strictEqual(S.usePower(three, "reroll"), null);
-    S.performRoll(three); S.performRoll(three); S.performRoll(three);
+    S.performRoll(three); S.performRoll(three);
+    assert.strictEqual(three.pos[0], 13);
+    S.performRoll(three);   // the third six: void, the pawn stays; the re-roll keeps the turn once
+    assert.strictEqual(three.lastMove.voided, true);
+    assert.strictEqual(three.pos[0], 13, "a void six moves nothing");
     assert.strictEqual(three.turn, 0, "three sixes would pass the turn; the re-roll keeps it once");
-    assert.strictEqual(three.sixes, 0);
-    S.performRoll(three);
-    assert.strictEqual(three.turn, 1);
+    assert.ok(/Three sixes/.test(three.log) && /Re-roll: roll again/.test(three.log), three.log);
+    S.performRoll(three);   // the re-roll's roll is the turn's last, a six included
+    assert.strictEqual(three.lastMove.reroll, true);
+    assert.strictEqual(three.pos[0], 19, "the re-roll's six moves");
+    assert.strictEqual(three.turn, 1, "and the turn passes after it");
+  });
+  await ok("the turn (qa1126): the third six in a row is void and passes the turn; a six on the re-roll's roll does not roll again", () => {
+    const room = table({ a: NONE, b: NONE, mode: "classic", pos: [1, 1], dice: [6, 6, 6, 2] });
+    S.performRoll(room); S.performRoll(room);
+    assert.strictEqual(room.pos[0], 13); assert.strictEqual(room.turn, 0);
+    S.performRoll(room);
+    assert.strictEqual(room.pos[0], 13, "the third six does not move the pawn");
+    assert.deepStrictEqual([room.lastMove.from, room.lastMove.landed, room.lastMove.to, room.lastMove.roll], [13, 13, 13, 6]);
+    assert.ok(/Three sixes — turn passes\./.test(room.log), room.log);
+    assert.strictEqual(room.turn, 1, "the turn passes");
+    S.performRoll(room);
+    assert.strictEqual(room.lastMove.seat, 1);
+    assert.strictEqual(room.pos[1], 3);
+    const rr = table({ a: FULL, pos: [1, 1], dice: [2, 6, 3] });
+    assert.strictEqual(S.usePower(rr, "reroll"), null);
+    S.performRoll(rr); S.performRoll(rr);
+    assert.strictEqual(rr.lastMove.reroll, true);
+    assert.strictEqual(rr.pos[0], 9);
+    assert.strictEqual(rr.turn, 1, "the re-roll's six is the turn's last roll");
+  });
+  await ok("the turn (qa1126): a table with an older app (no \"sixRule\" in its caps) keeps the rule that app was built for", () => {
+    const room = table({ a: FULL, b: NONE, oldApp: true, pos: [1, 1], dice: [6, 6, 6, 2] });
+    assert.strictEqual(S.sixRule(room), false);
+    S.performRoll(room); S.performRoll(room); S.performRoll(room);
+    assert.strictEqual(room.pos[0], 19, "the third six moves, as that app expects");
+    assert.strictEqual(room.lastMove.voided, undefined);
+    assert.strictEqual(room.turn, 1);
+    const two = table({ a: NONE, b: NONE, oldApp: true, mode: "classic", pos: [1, 1], dice: [6, 2], diceMode: "two" });
+    S.performRoll(two); S.pickDie(two, 1);
+    assert.strictEqual(two.turn, 0, "any die's six rolls again there");
+    const mixed = table({ a: NONE, b: NONE, mode: "classic", pos: [1, 1] });
+    assert.strictEqual(S.sixRule(mixed), true);
+    mixed.players[1].sixRule = false;
+    assert.strictEqual(S.sixRule(mixed), false, "one older app keeps the whole table on the old rule");
+    mixed.players[1].bot = true;
+    assert.strictEqual(S.sixRule(mixed), true, "bots have no app");
+  });
+  await ok("the turn (qa1126): two dice: only the die the pawn moves by rolls again on a six", () => {
+    const room = table({ a: NONE, b: NONE, mode: "classic", pos: [1, 1], dice: [6, 2, 3, 6, 6, 6], diceMode: "two" });
+    S.performRoll(room); S.pickDie(room, 1);   // 6 and 2, moved by the 2
+    assert.strictEqual(room.pos[0], 3);
+    assert.strictEqual(room.turn, 1, "the unused six gives no roll");
+    S.performRoll(room); S.pickDie(room, 1);   // Ben: 3 and 6, moved by the 6
+    assert.strictEqual(room.pos[1], 7);
+    assert.strictEqual(room.turn, 1, "the six he moved by rolls again");
+    S.performRoll(room);   // doubles 6 and 6: no pick, a six
+    assert.strictEqual(room.pos[1], 13);
+    assert.strictEqual(room.turn, 1);
+  });
+  await ok("the turn (qa1126): random tables never give a seat more rolls in a row than the rule allows (three; four with a re-roll)", () => {
+    for (let t = 0; t < 400; t++) {
+      const power = t % 2 === 0, two = t % 3 === 0;
+      const room = table({ a: FULL, b: FULL, mode: power ? "power" : "classic", diceMode: two ? "two" : "one", pos: [1, 1] });
+      room.testDice = Array.from({ length: 200 }, () => (Math.random() < 0.45 ? 6 : 1 + Math.floor(Math.random() * 6)));
+      let prev = -1, run = 0, rerollThisTurn = false;
+      for (let k = 0; k < 120 && room.status === "playing" && room.testDice.length > 2; k++) {
+        const seat = room.turn;
+        if (seat !== prev) { run = 0; prev = seat; rerollThisTurn = false; }
+        if (power && !room.pw.turnUsed && Math.random() < 0.3 && !S.usePower(room, "reroll")) rerollThisTurn = true;
+        S.performRoll(room);
+        if (room.dice) S.pickDie(room, Math.random() < 0.5 ? 0 : 1);
+        run++;
+        assert.ok(run <= (rerollThisTurn ? 4 : 3), `seat ${seat} rolled ${run} times in a row on table ${t}: ${room.log}`);
+        if (room.lastMove.voided) assert.strictEqual(room.lastMove.to, room.lastMove.from, "a void six moves nothing");
+        if (room.lastMove.roll === 6 && !room.lastMove.voided && !room.lastMove.reroll && room.status === "playing") assert.strictEqual(room.turn, seat, "a six rolls again");
+      }
+    }
   });
   await ok("two dice: no power-up while a pick is pending, and the re-roll works with the pick", () => {
     const room = table({ a: FULL, pos: [1, 1], dice: [2, 3, 4, 5], diceMode: "two" });
