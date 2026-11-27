@@ -158,18 +158,43 @@ async function part1() {
     assert.deepStrictEqual(room.lastMove.boost, { from: 95, foot: 94 });
     assert.strictEqual(room.pos[0], 96);
   });
-  await ok("ladder boost (qa1126): a foot touching the square from above or below counts as one square away", () => {
-    // 29 is in the row 21-30 (left to right); above it, in the row 31-40 (right to left), is 32; below it, 12 (11-20 runs right to left)
-    assert.deepStrictEqual(S.touching(29).sort((a, b) => a - b), [12, 28, 30, 32]);
-    assert.deepStrictEqual(S.touching(1).sort((a, b) => a - b), [2, 20]);
-    assert.deepStrictEqual(S.touching(100).sort((a, b) => a - b), [81, 99]);
+  await ok("ladder boost (fix365): only a foot one square away by number; never one that only touches from the row above or below", () => {
+    // 29 is in the row 21-30 (left to right); above it, in the row 31-40 (right to left), is 32; below it, 12: neither is one square away by number
+    assert.deepStrictEqual(S.boostReach(29), [28, 30]);
+    assert.deepStrictEqual(S.boostReach(1), [2]);
+    assert.deepStrictEqual(S.boostReach(99), [98, 100]);
     const room = table({ a: FULL, pos: [24, 0], dice: [5] });
     room.ladders = { 32: 52 }; room.snakes = { 25: 5 };
     assert.strictEqual(S.usePower(room, "ladder"), null);
-    S.performRoll(room);   // 29: the foot at 32 is the square above it
-    assert.deepStrictEqual(room.lastMove.boost, { from: 29, foot: 32 });
-    assert.strictEqual(room.pos[0], 52);
-    assert.strictEqual(room.pw.marks[0].ladder, false);
+    S.performRoll(room);   // 29: the foot at 32 is the square above it, ten squares on by number: no hop
+    assert.strictEqual(room.lastMove.boost, undefined);
+    assert.strictEqual(room.pos[0], 29);
+    assert.strictEqual(room.pw.marks[0].ladder, true, "the boost waits");
+  });
+  await ok("ladder boost (fix365): from every square, the boost picks only ladder feet at +1 or -1 by number", () => {
+    let checked = 0;
+    for (let n = 2; n <= 97; n++) {
+      // Every square touching n from the row above or below holds a ladder's foot (each climbing to 99); none is n - 1 or n + 1.
+      const far = S.touching(n).filter((q) => q !== n - 1 && q !== n + 1 && q < 98);
+      const play = (feet) => {
+        const room = table({ a: FULL, pos: [n - 1, 0], dice: [1] });
+        room.ladders = {}; room.snakes = {};
+        for (const q of feet) room.ladders[q] = 99;
+        assert.strictEqual(S.usePower(room, "ladder"), null);
+        S.performRoll(room);   // lands on n
+        assert.strictEqual(room.lastMove.landed, n);
+        return room.lastMove.boost;
+      };
+      assert.strictEqual(play(far), undefined, `from ${n}: no hop to a foot that only touches it (${far.join(", ")})`);
+      const near = play(far.concat([n + 1]));
+      assert.deepStrictEqual(near, { from: n, foot: n + 1 }, `from ${n}: the foot at ${n + 1} is the one square away`);
+      if (n - 1 >= 2) {
+        const either = play(far.concat([n - 1, n + 1]));
+        assert.ok(either && [n - 1, n + 1].includes(either.foot), `from ${n}: a foot one square away either side, never another`);
+      }
+      checked++;
+    }
+    assert.strictEqual(checked, 96);
   });
   await ok("ladder boost (qa1126): on a snake's head one square from a foot, the hop comes before the bite", () => {
     const room = table({ a: FULL, pos: [20, 0], dice: [4] });

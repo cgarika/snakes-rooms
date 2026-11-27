@@ -136,9 +136,11 @@ function setupGame(room) {
 /* ---------- Power mode (2026-11-13; power.js has the rules that never bend) ----------
    All three are tapped on your turn, before you roll. Antidote: your pawn wears it until one bite does nothing (the pawn
    stays on the snake's head). Ladder boost: your pawn wears it until a move of yours ends one square from a ladder's foot
-   (qa1126, 2026-11-25: any square touching the foot on the board, beside it, above or below it, as a player sees "1 square
-   away"; before, only the squares numbered one before and one after it, and never a snake's head, so a third of the boosts
-   bought were never used by the end of the game) on a square that is not a ladder's foot itself; the pawn then hops to the
+   BY NUMBER, the square numbered one before or one after it (fix365, the lead's rule, 2026-11-26: the banner says "CLIMB
+   FROM 1 SQUARE AWAY" and a player counts squares by number; the qa1126 rule also reached a foot touching the square from
+   the row above or below, which on the board reads as a jump of up to 19 squares back or ahead, the "didn't work as
+   expected" the owner had; a snake's head one square from a foot still hops before the bite, as qa1126 made it), on a
+   square that is not a ladder's foot itself; the pawn then hops to the
    foot and climbs, the taller climb when two are in reach, and a boost on a snake's head hops off it before the bite. Only a
    ladder that takes the pawn higher than it stands. Re-roll: one more roll this turn: the first time the turn would pass,
    it does not (a first move that wins ends the game); that roll is the turn's last, a six on it included. One of each mark
@@ -237,7 +239,7 @@ function landOn(room, seat, landed) {
   const out = { end: landed, kind: null, from: null };
   let n = landed;
   if (marks.ladder && n < 100 && ladders[n] === undefined) {
-    const feet = touching(n).filter((f) => ladders[f] !== undefined && ladders[f] > n);
+    const feet = boostReach(n).filter((f) => ladders[f] !== undefined && ladders[f] > n);
     if (feet.length) {
       const foot = feet.reduce((a, b) => (ladders[b] - b >= ladders[a] - a ? b : a));   // the taller climb; the same height, the one ahead
       out.boost = { from: n, foot };
@@ -255,6 +257,11 @@ function landOn(room, seat, landed) {
   }
   out.end = n;
   return out;
+}
+
+/* The squares a ladder boost reaches from square n (fix365): one before and one after it by number, on the board. */
+function boostReach(n) {
+  return [n - 1, n + 1].filter((q) => q >= 1 && q <= 100);
 }
 
 /* The squares touching square n on the board (beside it in its row, and above and below it): the boustrophedon board's
@@ -889,4 +896,4 @@ if (require.main === module) server.listen(PORT, () => console.log("Snakes & Lad
 function layoutOf(seed) { const b = Layouts.pick(seed); return { id: b.id, mirrored: b.mirrored }; }
 
 module.exports = { genBoard, layoutOf, botPickDie, chase, capName, capAvatar, FEATURES, botThinkMs, LADDERS, SNAKES,
-  Power, rooms, roomSockets, timers, botTimers, setupGame, setupPower, powerCan, powerView, powerMe, usePower, botPower, landOn, touching, sixRule, performRoll, applyMove, pickDie, nextTurn, onTurnTimeout };
+  Power, rooms, roomSockets, timers, botTimers, setupGame, setupPower, powerCan, powerView, powerMe, usePower, botPower, landOn, touching, boostReach, sixRule, performRoll, applyMove, pickDie, nextTurn, onTurnTimeout };
